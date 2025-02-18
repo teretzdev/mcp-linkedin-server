@@ -365,7 +365,7 @@ async def browse_linkedin_feed(ctx: Context, count: int = 5) -> dict:
         
 
 @mcp.tool()
-async def search_linkedin_profiles(query: str, count: int = 5, ctx: Context) -> dict:
+async def search_linkedin_profiles(query: str, ctx: Context, count: int = 5) -> dict:
     """Search for LinkedIn profiles matching a query"""
     async with BrowserSession(platform='linkedin') as session:
         try:
@@ -500,7 +500,7 @@ async def view_linkedin_profile(profile_url: str, ctx: Context) -> dict:
         
 
 @mcp.tool()
-async def interact_with_linkedin_post(post_url: str, action: str = "like", comment: str = None, ctx: Context) -> dict:
+async def interact_with_linkedin_post(post_url: str, ctx: Context, action: str = "like", comment: str = None) -> dict:
     """Interact with a LinkedIn post (like, comment)"""
     if not ('linkedin.com/posts/' in post_url or 'linkedin.com/feed/update/' in post_url):
         return {
