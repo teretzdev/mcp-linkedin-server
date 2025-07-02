@@ -690,6 +690,398 @@ async def interact_with_linkedin_post(post_url: str, ctx: Context, action: str =
         
         
 
+@mcp.tool()
+async def search_linkedin_jobs(query: str, ctx: Context, location: str = '', filters: dict = None, count: int = 10) -> dict:
+    """Search for LinkedIn jobs matching a query and location"""
+    filters = filters or {}
+    async with BrowserSession(platform='linkedin') as session:
+        try:
+            # Build the LinkedIn jobs search URL
+            base_url = 'https://www.linkedin.com/jobs/search/?keywords=' + query.replace(' ', '%20')
+            if location:
+                base_url += f'&location={location.replace(" ", "%20")}'
+            # Add filters if needed (e.g., remote, experience level)
+            # For now, just use query and location
+            page = await session.new_page(base_url)
+
+            # Check if we're logged in
+            if 'login' in page.url:
+                return {
+                    "status": "error",
+                    "message": "Not logged in. Please run login_linkedin tool first"
+                }
+
+            ctx.info(f"Searching for jobs: {query} in {location}")
+            report_progress(ctx, 20, 100, "Loading job search results...")
+
+            # Wait for job cards to load
+            await page.wait_for_selector('.jobs-search-results__list-item', timeout=10000)
+            ctx.info("Job search results loaded")
+            report_progress(ctx, 50, 100, "Extracting job data...")
+
+            # Extract job data
+            jobs = await page.evaluate('''(count) => {
+                const results = [];
+                const jobCards = document.querySelectorAll('.jobs-search-results__list-item');
+                for (let i = 0; i < Math.min(jobCards.length, count); i++) {
+                    const card = jobCards[i];
+                    try {
+                        const job = {
+                            title: card.querySelector('.base-search-card__title')?.innerText?.trim() || '',
+                            company: card.querySelector('.base-search-card__subtitle')?.innerText?.trim() || '',
+                            location: card.querySelector('.job-search-card__location')?.innerText?.trim() || '',
+                            posted: card.querySelector('time')?.getAttribute('datetime') || '',
+                            jobUrl: card.querySelector('a.base-card__full-link')?.href || '',
+                            descriptionSnippet: card.querySelector('.job-search-card__snippet')?.innerText?.trim() || ''
+                        };
+                        results.push(job);
+                    } catch (e) {
+                        // skip
+                    }
+                }
+                return results;
+            }''', count)
+
+            report_progress(ctx, 90, 100, "Saving session...")
+            await session.save_session(page)
+            report_progress(ctx, 100, 100, "Job search complete")
+
+            return {
+                "status": "success",
+                "jobs": jobs,
+                "count": len(jobs),
+                "query": query,
+                "location": location
+            }
+        except Exception as e:
+            ctx.error(f"Job search failed: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Failed to search jobs: {str(e)}"
+            }
+
+@mcp.tool()
+async def apply_to_linkedin_job(job_url: str, ctx: Context, resume_path: str = '', cover_letter_path: str = '') -> dict:
+    """Apply to a LinkedIn job (Easy Apply only)"""
+    if not ('linkedin.com/jobs/view/' in job_url):
+        return {
+            "status": "error",
+            "message": "Invalid LinkedIn job URL. Should contain 'linkedin.com/jobs/view/'"
+        }
+        
+    async with BrowserSession(platform='linkedin', headless=False) as session:
+        try:
+            page = await session.new_page(job_url)
+            
+            # Check if we're logged in
+            if 'login' in page.url:
+                return {
+                    "status": "error", 
+                    "message": "Not logged in. Please run login_linkedin tool first"
+                }
+                
+            ctx.info(f"Applying to job: {job_url}")
+            report_progress(ctx, 20, 100, "Loading job page...")
+            
+            # Wait for job page to load
+            await page.wait_for_selector('.jobs-unified-top-card__job-title', timeout=10000)
+            ctx.info("Job page loaded")
+            report_progress(ctx, 40, 100, "Looking for Easy Apply button...")
+            
+            # Check if Easy Apply is available
+            easy_apply_button = await page.query_selector('button[aria-label*="Easy Apply"]')
+            if not easy_apply_button:
+                return {
+                    "status": "error",
+                    "message": "Easy Apply not available for this job. Manual application required."
+                }
+            
+            # Click Easy Apply button
+            await easy_apply_button.click()
+            ctx.info("Easy Apply button clicked")
+            report_progress(ctx, 60, 100, "Processing application...")
+            
+            # Wait for application modal
+            await page.wait_for_selector('.jobs-easy-apply-modal', timeout=5000)
+            
+            # Handle application steps (simplified - just submit if possible)
+            try:
+                # Look for submit button
+                submit_button = await page.query_selector('button[aria-label="Submit application"]')
+                if submit_button:
+                    await submit_button.click()
+                    ctx.info("Application submitted")
+                    report_progress(ctx, 90, 100, "Application submitted successfully")
+                    
+                    # Save to applied jobs tracking
+                    await save_applied_job_tracking(job_url, page)
+                    
+                    await session.save_session(page)
+                    return {
+                        "status": "success",
+                        "message": "Successfully applied to job",
+                        "job_url": job_url
+                    }
+                else:
+                    return {
+                        "status": "partial",
+                        "message": "Application started but manual completion required",
+                        "job_url": job_url
+                    }
+            except Exception as apply_error:
+                return {
+                    "status": "partial",
+                    "message": f"Application started but encountered issues: {str(apply_error)}",
+                    "job_url": job_url
+                }
+                
+        except Exception as e:
+            ctx.error(f"Job application failed: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Failed to apply to job: {str(e)}"
+            }
+
+@mcp.tool()
+async def save_linkedin_job(job_url: str, ctx: Context) -> dict:
+    """Save a LinkedIn job"""
+    if not ('linkedin.com/jobs/view/' in job_url):
+        return {
+            "status": "error",
+            "message": "Invalid LinkedIn job URL. Should contain 'linkedin.com/jobs/view/'"
+        }
+        
+    async with BrowserSession(platform='linkedin') as session:
+        try:
+            page = await session.new_page(job_url)
+            
+            # Check if we're logged in
+            if 'login' in page.url:
+                return {
+                    "status": "error", 
+                    "message": "Not logged in. Please run login_linkedin tool first"
+                }
+                
+            ctx.info(f"Saving job: {job_url}")
+            report_progress(ctx, 20, 100, "Loading job page...")
+            
+            # Wait for job page to load
+            await page.wait_for_selector('.jobs-unified-top-card__job-title', timeout=10000)
+            ctx.info("Job page loaded")
+            report_progress(ctx, 50, 100, "Looking for save button...")
+            
+            # Look for save button
+            save_button = await page.query_selector('button[aria-label*="Save job"]')
+            if not save_button:
+                # Try alternative selectors
+                save_button = await page.query_selector('.jobs-save-button')
+            
+            if save_button:
+                await save_button.click()
+                ctx.info("Job saved")
+                report_progress(ctx, 90, 100, "Job saved successfully")
+                
+                # Save to saved jobs tracking
+                await save_saved_job_tracking(job_url, page)
+                
+                await session.save_session(page)
+                return {
+                    "status": "success",
+                    "message": "Successfully saved job",
+                    "job_url": job_url
+                }
+            else:
+                return {
+                    "status": "error",
+                    "message": "Could not find save button for this job"
+                }
+                
+        except Exception as e:
+            ctx.error(f"Job save failed: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Failed to save job: {str(e)}"
+            }
+
+# Helper functions for job tracking
+async def save_applied_job_tracking(job_url: str, page):
+    """Save applied job to local tracking"""
+    try:
+        # Extract job details
+        job_data = await page.evaluate('''() => {
+            return {
+                title: document.querySelector('.jobs-unified-top-card__job-title')?.innerText?.trim() || '',
+                company: document.querySelector('.jobs-unified-top-card__company-name')?.innerText?.trim() || '',
+                location: document.querySelector('.jobs-unified-top-card__bullet')?.innerText?.trim() || '',
+                date_applied: new Date().toISOString(),
+                job_url: window.location.href
+            };
+        }''')
+        
+        # Load existing applied jobs
+        applied_jobs = []
+        try:
+            with open('applied_jobs.json', 'r') as f:
+                applied_jobs = json.load(f)
+        except FileNotFoundError:
+            pass
+        
+        # Add new job if not already present
+        if not any(job['job_url'] == job_url for job in applied_jobs):
+            applied_jobs.append(job_data)
+            
+            # Save back to file
+            with open('applied_jobs.json', 'w') as f:
+                json.dump(applied_jobs, f, indent=2)
+                
+    except Exception as e:
+        logger.error(f"Failed to save applied job tracking: {str(e)}")
+
+async def save_saved_job_tracking(job_url: str, page):
+    """Save saved job to local tracking"""
+    try:
+        # Extract job details
+        job_data = await page.evaluate('''() => {
+            return {
+                title: document.querySelector('.jobs-unified-top-card__job-title')?.innerText?.trim() || '',
+                company: document.querySelector('.jobs-unified-top-card__company-name')?.innerText?.trim() || '',
+                location: document.querySelector('.jobs-unified-top-card__bullet')?.innerText?.trim() || '',
+                date_saved: new Date().toISOString(),
+                job_url: window.location.href
+            };
+        }''')
+        
+        # Load existing saved jobs
+        saved_jobs = []
+        try:
+            with open('saved_jobs.json', 'r') as f:
+                saved_jobs = json.load(f)
+        except FileNotFoundError:
+            pass
+        
+        # Add new job if not already present
+        if not any(job['job_url'] == job_url for job in saved_jobs):
+            saved_jobs.append(job_data)
+            
+            # Save back to file
+            with open('saved_jobs.json', 'w') as f:
+                json.dump(saved_jobs, f, indent=2)
+                
+    except Exception as e:
+        logger.error(f"Failed to save saved job tracking: {str(e)}")
+
+@mcp.tool()
+async def list_applied_jobs(ctx: Context) -> dict:
+    """List jobs you've applied to"""
+    try:
+        # Load applied jobs from local tracking
+        try:
+            with open('applied_jobs.json', 'r') as f:
+                applied_jobs = json.load(f)
+        except FileNotFoundError:
+            applied_jobs = []
+        
+        return {
+            "status": "success",
+            "applied_jobs": applied_jobs,
+            "count": len(applied_jobs)
+        }
+    except Exception as e:
+        ctx.error(f"Failed to list applied jobs: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to list applied jobs: {str(e)}",
+            "applied_jobs": []
+        }
+
+@mcp.tool()
+async def get_job_recommendations(ctx: Context) -> dict:
+    """Get job recommendations from LinkedIn"""
+    async with BrowserSession(platform='linkedin') as session:
+        try:
+            # Go to LinkedIn jobs recommendations page
+            page = await session.new_page('https://www.linkedin.com/jobs/')
+            
+            # Check if we're logged in
+            if 'login' in page.url:
+                return {
+                    "status": "error", 
+                    "message": "Not logged in. Please run login_linkedin tool first"
+                }
+                
+            ctx.info("Loading job recommendations...")
+            report_progress(ctx, 20, 100, "Loading recommendations page...")
+            
+            # Wait for job cards to load
+            await page.wait_for_selector('.jobs-search-results__list-item', timeout=10000)
+            ctx.info("Recommendations loaded")
+            report_progress(ctx, 50, 100, "Extracting recommended jobs...")
+            
+            # Extract recommended job data
+            recommended_jobs = await page.evaluate('''() => {
+                const results = [];
+                const jobCards = document.querySelectorAll('.jobs-search-results__list-item');
+                for (let i = 0; i < Math.min(jobCards.length, 10); i++) {
+                    const card = jobCards[i];
+                    try {
+                        const job = {
+                            title: card.querySelector('.base-search-card__title')?.innerText?.trim() || '',
+                            company: card.querySelector('.base-search-card__subtitle')?.innerText?.trim() || '',
+                            location: card.querySelector('.job-search-card__location')?.innerText?.trim() || '',
+                            posted: card.querySelector('time')?.getAttribute('datetime') || '',
+                            jobUrl: card.querySelector('a.base-card__full-link')?.href || '',
+                            descriptionSnippet: card.querySelector('.job-search-card__snippet')?.innerText?.trim() || ''
+                        };
+                        results.push(job);
+                    } catch (e) {
+                        // skip
+                    }
+                }
+                return results;
+            }''')
+            
+            report_progress(ctx, 90, 100, "Saving session...")
+            await session.save_session(page)
+            report_progress(ctx, 100, 100, "Recommendations complete")
+            
+            return {
+                "status": "success",
+                "recommended_jobs": recommended_jobs,
+                "count": len(recommended_jobs)
+            }
+            
+        except Exception as e:
+            ctx.error(f"Failed to get job recommendations: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Failed to get job recommendations: {str(e)}",
+                "recommended_jobs": []
+            }
+
+@mcp.tool()
+async def list_saved_jobs(ctx: Context) -> dict:
+    """List jobs you've saved"""
+    try:
+        # Load saved jobs from local tracking
+        try:
+            with open('saved_jobs.json', 'r') as f:
+                saved_jobs = json.load(f)
+        except FileNotFoundError:
+            saved_jobs = []
+        
+        return {
+            "status": "success",
+            "saved_jobs": saved_jobs,
+            "count": len(saved_jobs)
+        }
+    except Exception as e:
+        ctx.error(f"Failed to list saved jobs: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to list saved jobs: {str(e)}",
+            "saved_jobs": []
+        }
+
 if __name__ == "__main__":
     try:
         logger.debug("Starting LinkedIn MCP Server with debug logging")

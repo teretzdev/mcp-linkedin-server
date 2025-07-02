@@ -1,0 +1,19 @@
+{
+  "username": "teretz@gmail.com",
+  "current_position": "Software Engineer",
+  "skills": [
+    "Python",
+    "JavaScript",
+    "React",
+    "Node.js"
+  ],
+  "target_roles": [
+    "Senior Software Engineer",
+    "Full Stack Developer"
+  ],
+  "target_locations": [
+    "Remote",
+    "San Francisco",
+    "New York"
+  ]
+}
