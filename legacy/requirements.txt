@@ -1,0 +1,73 @@
+# LinkedIn Job Hunter - Python Dependencies
+
+# Core Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+
+# Web Scraping and Browser Automation
+playwright==1.40.0
+selenium==4.15.2
+
+# System and Process Management
+psutil==5.9.6
+
+# Security and Authentication
+PyJWT==2.8.0
+bcrypt==4.1.2
+python-multipart==0.0.6
+
+# HTTP and API
+requests==2.31.0
+httpx==0.25.2
+aiohttp==3.9.1
+
+# Environment and Configuration
+python-dotenv==1.0.0
+pydantic-settings==2.1.0
+
+# Database
+sqlalchemy==2.0.23
+alembic==1.13.1
+sqlite3
+
+# AI and Machine Learning
+openai==1.3.7
+google-generativeai==0.3.2
+langchain==0.0.350
+
+# Data Processing
+pandas==2.1.4
+numpy==1.25.2
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+
+# Development Tools
+black==23.11.0
+flake8==6.1.0
+mypy==1.7.1
+pre-commit==3.6.0
+
+# Logging and Monitoring
+structlog==23.2.0
+prometheus-client==0.19.0
+
+# Utilities
+click==8.1.7
+rich==13.7.0
+tqdm==4.66.1
+python-dateutil==2.8.2
+
+# MCP (Model Context Protocol)
+mcp==1.0.0
+
+# Optional: Performance and Caching
+redis==5.0.1
+celery==5.3.4
+
+# Optional: Production
+gunicorn==21.2.0 

@@ -1,347 +1,255 @@
-# LinkedIn Job Hunter
+# LinkedIn Job Hunter - Refactored Project
 
-A powerful LinkedIn job search automation tool built with FastMCP, Playwright, and React. Automate your job search process by finding, applying to, and tracking jobs on LinkedIn.
+## 🎯 Overview
 
-## 🚀 Features
-
-### Job Search & Application
-- **Real-time Job Search**: Search LinkedIn jobs by keywords, location, and filters
-- **One-Click Apply**: Automatically apply to Easy Apply jobs
-- **Job Saving**: Save interesting jobs for later review
-- **Application Tracking**: Keep track of all jobs you've applied to
-- **Job Recommendations**: Get personalized job suggestions from LinkedIn
-
-### Automation & Efficiency
-- **Browser Automation**: Uses Playwright for reliable LinkedIn interaction
-- **Session Management**: Persistent login sessions with cookie encryption
-- **Rate Limiting**: Intelligent automation to avoid detection
-- **Error Handling**: Robust error handling and recovery
-
-### User Interface
-- **Modern Dashboard**: Clean, responsive React interface
-- **Real-time Stats**: Track your job search progress
-- **Job Cards**: Easy-to-read job listings with apply/save buttons
-- **Mobile Responsive**: Works on desktop and mobile devices
-
-## 🎯 Enhanced Application Tracking
-
-The LinkedIn Job Hunter now includes comprehensive application tracking features to help you manage your job search effectively.
-
-### 📊 Application Tracker Features
-
-#### **Status Management**
-- **Multiple Status Types**: Applied, Under Review, Interview, Offer, Rejected, Withdrawn
-- **Visual Status Indicators**: Color-coded badges with icons for quick identification
-- **Status Updates**: Easily update application status with dropdown menus
-- **Progress Tracking**: See your application pipeline at a glance
-
-#### **Advanced Filtering & Search**
-- **Smart Search**: Search by job title, company, or location
-- **Status Filtering**: Filter applications by current status
-- **Sorting Options**: Sort by date applied, job title, company, or status
-- **Date Range Filtering**: Focus on recent or specific time periods
-
-#### **Notes & Follow-ups**
-- **Application Notes**: Add detailed notes to each application
-- **Follow-up Reminders**: Set reminders for follow-up actions
-- **Note History**: Track all notes with timestamps
-- **Quick Actions**: Mark follow-ups as completed
-
-#### **Analytics Dashboard**
-- **Performance Metrics**: Success rate, response rate, daily averages
-- **Status Breakdown**: Visual charts showing application distribution
-- **Company Analysis**: Top companies you've applied to
-- **Monthly Trends**: Track application volume over time
-- **Insights & Recommendations**: AI-powered suggestions for improvement
-
-#### **Export & Reporting**
-- **CSV Export**: Export application data for external analysis
-- **Custom Reports**: Generate reports based on filters and date ranges
-- **Data Backup**: Secure local storage of all application data
-
-### 🔄 Follow-up Tracker
-
-#### **Smart Reminders**
-- **Overdue Alerts**: Highlight follow-ups that are past due
-- **Upcoming Reminders**: Show follow-ups due in the next week
-- **Multiple Types**: Email, phone call, LinkedIn message tracking
-- **Completion Tracking**: Mark follow-ups as completed
-
-#### **Follow-up Management**
-- **Add Follow-ups**: Create reminders for any application
-- **Due Date Tracking**: Set specific dates for follow-up actions
-- **Notes Integration**: Add context to each follow-up
-- **Bulk Actions**: Manage multiple follow-ups efficiently
-
-### 📈 Analytics & Insights
-
-#### **Key Performance Indicators**
-- **Application Success Rate**: Percentage of applications leading to interviews/offers
-- **Response Rate**: Percentage of applications receiving any response
-- **Daily Application Volume**: Average applications per day
-- **Company Engagement**: Most responsive companies
-
-#### **Visual Analytics**
-- **Status Distribution Charts**: See your application pipeline
-- **Monthly Trend Graphs**: Track application volume over time
-- **Company Performance**: Identify most promising companies
-- **Geographic Analysis**: Track applications by location
-
-#### **Smart Recommendations**
-- **Performance Insights**: AI-powered analysis of your job search
-- **Improvement Suggestions**: Actionable advice based on your data
-- **Success Patterns**: Identify what's working for you
-- **Risk Alerts**: Warning signs for potential issues
-
-### 🛠️ How to Use
-
-#### **Getting Started**
-1. **Navigate to Applications**: Click "Applications" in the sidebar
-2. **View Your Pipeline**: See all applications with current status
-3. **Update Status**: Use dropdown menus to update application progress
-4. **Add Notes**: Click the edit icon to add notes to any application
-
-#### **Using Follow-ups**
-1. **Go to Follow-ups**: Click "Follow-ups" in the sidebar
-2. **Add Reminder**: Click "Add Follow-up" to create a new reminder
-3. **Set Due Date**: Choose when you need to follow up
-4. **Track Progress**: Mark follow-ups as completed when done
-
-#### **Analyzing Performance**
-1. **Open Analytics**: Click "Analytics" in the sidebar
-2. **Choose Time Range**: Select the period you want to analyze
-3. **Review Metrics**: Check your success and response rates
-4. **Export Data**: Download reports for external analysis
-
-### 📱 Mobile-Friendly Design
-
-All application tracking features are fully responsive and work seamlessly on:
-- **Desktop Computers**: Full-featured experience with all tools
-- **Tablets**: Touch-optimized interface for easy navigation
-- **Mobile Phones**: Streamlined view for on-the-go tracking
-
-### 🔒 Data Privacy & Security
-
-- **Local Storage**: All application data is stored locally on your device
-- **No Cloud Sync**: Your data never leaves your machine
-- **Encrypted Sessions**: Secure handling of LinkedIn credentials
-- **Export Control**: You control what data to export and when
-
-### 🚀 Advanced Features
-
-#### **Integration with Job Search**
-- **Automatic Tracking**: Applications submitted through the tool are automatically tracked
-- **Easy Apply Integration**: Seamless tracking of Easy Apply submissions
-- **Manual Entry**: Add applications submitted outside the tool
-
-#### **Customization Options**
-- **Status Customization**: Add custom status types if needed
-- **Note Templates**: Create reusable note templates
-- **Filter Presets**: Save commonly used filter combinations
-
-#### **Automation Features**
-- **Auto-reminders**: Automatic follow-up suggestions based on application age
-- **Status Suggestions**: AI-powered status update recommendations
-- **Performance Alerts**: Notifications when metrics need attention
-
-## 🏗️ Architecture
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   React Frontend│    │   FastAPI Bridge│    │  FastMCP Server │
-│   (Port 3000)   │◄──►│   (Port 8001)   │◄──►│  (Playwright)   │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
-
-- **Frontend**: React with Tailwind CSS and Lucide icons
-- **API Bridge**: FastAPI server connecting frontend to MCP
-- **Backend**: FastMCP server with Playwright browser automation
-
-## 📋 Prerequisites
-
-- Python 3.8+
-- Node.js 16+
-- LinkedIn account
-- Windows 10/11 (tested on Windows)
-
-## 🛠️ Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd mcp-linkedin-server
-   ```
-
-2. **Set up Python environment**
-   ```bash
-   # Create virtual environment
-   python -m venv env
-   
-   # Activate (Windows)
-   env\Scripts\activate
-   
-   # Install dependencies
-   pip install -r requirements.txt
-   ```
-
-3. **Set up React frontend**
-   ```bash
-   # Install dependencies
-   npm install
-   ```
-
-4. **Configure environment**
-   ```bash
-   # Create .env file with your LinkedIn credentials
-   echo "LINKEDIN_USERNAME=your_email@example.com" > .env
-   echo "LINKEDIN_PASSWORD=your_password" >> .env
-   ```
-
-## 🚀 Quick Start
-
-### One-Command Startup
-```bash
-# Windows PowerShell
-.\start_all.bat
-```
-
-This will:
-- Start the MCP server
-- Start the API bridge
-- Start the React frontend
-- Open the dashboard in your browser
-
-### Manual Startup
-```bash
-# Terminal 1: Start MCP Server
-python linkedin_browser_mcp.py
-
-# Terminal 2: Start API Bridge
-python api_bridge.py
-
-# Terminal 3: Start React Frontend
-npm start
-```
-
-## 📖 Usage
-
-### 1. Login to LinkedIn
-- The system will automatically log in using your credentials from `.env`
-- Sessions are encrypted and persisted between runs
-
-### 2. Search for Jobs
-- Go to "Job Search" in the dashboard
-- Enter job keywords and location
-- Click "Search Jobs" to find matching positions
-
-### 3. Apply to Jobs
-- Click "Apply" on any job card
-- The system will attempt Easy Apply for you
-- Track your applications in the "Applications" section
-
-### 4. Save Jobs
-- Click "Save" on interesting jobs
-- View saved jobs in the "Saved Jobs" section
-- Get personalized recommendations
-
-### 5. Track Progress
-- Monitor your job search stats on the dashboard
-- View applied jobs and their status
-- Check system status and connection
-
-## 🔧 API Endpoints
-
-### Job Search
-- `POST /api/search_jobs` - Search for LinkedIn jobs
-- `POST /api/apply_job` - Apply to a job
-- `POST /api/save_job` - Save a job
-
-### Job Tracking
-- `GET /api/list_applied_jobs` - List applied jobs
-- `GET /api/list_saved_jobs` - List saved jobs
-- `GET /api/job_recommendations` - Get job recommendations
-
-### System
-- `GET /api/health` - Health check
+This project has been refactored to provide a clean separation between the legacy LinkedIn Job Hunter codebase and the new enhanced MCP server, while maintaining shared resources and allowing for gradual migration.
 
 ## 📁 Project Structure
 
 ```
-mcp-linkedin-server/
-├── linkedin_browser_mcp.py    # FastMCP server with Playwright
-├── api_bridge.py              # FastAPI bridge
-├── src/                       # React frontend
-│   ├── components/
-│   │   ├── Dashboard.js       # Main dashboard
-│   │   ├── JobSearch.js       # Job search interface
-│   │   ├── Applications.js    # Applied jobs tracking
-│   │   ├── SavedJobs.js       # Saved jobs & recommendations
-│   │   └── SettingsPage.js    # Settings
-│   └── App.js                 # Main app component
-├── start_all.bat              # One-command startup
-├── requirements.txt           # Python dependencies
-├── package.json              # Node.js dependencies
-└── README.md                 # This file
+linkedin-job-hunter/
+├── enhanced-mcp-server/           # New enhanced MCP server
+│   ├── mcp_server/               # Enhanced MCP server core
+│   │   ├── core/
+│   │   │   ├── server.py         # Main MCP server
+│   │   │   ├── browser_manager.py # Browser session management
+│   │   │   ├── auth_manager.py   # Authentication handling
+│   │   │   └── error_handler.py  # Error handling
+│   │   ├── tools/                # MCP tools (to be implemented)
+│   │   ├── models/               # Data models (to be implemented)
+│   │   ├── database/             # Database layer (to be implemented)
+│   │   └── utils/                # Utilities (to be implemented)
+│   ├── config/
+│   │   └── mcp_config.json       # Enhanced server configuration
+│   ├── scripts/
+│   │   ├── start_enhanced_mcp_server.py # Enhanced server startup
+│   │   └── health_check.py       # Health monitoring
+│   └── requirements.txt          # Enhanced dependencies
+│
+├── legacy/                       # Original codebase
+│   ├── linkedin_browser_mcp.py   # Original MCP server
+│   ├── api_bridge.py             # Original API bridge
+│   ├── mcp_client.py             # Original MCP client
+│   ├── database/                 # Original database
+│   ├── src/                      # Original React frontend
+│   ├── config.json               # Legacy configuration
+│   └── requirements.txt          # Original dependencies
+│
+├── shared/                       # Shared resources
+│   ├── database/                 # Shared database files
+│   │   └── linkedin_jobs.db      # Main database
+│   ├── sessions/                 # Shared session storage
+│   ├── logs/                     # Shared log files
+│   └── config/                   # Shared configuration
+│
+├── scripts/                      # Project-wide scripts
+│   └── migrate_data.py           # Data migration script
+│
+├── docs/                         # Project documentation
+│   ├── legacy/                   # Legacy documentation
+│   ├── enhanced/                 # Enhanced documentation
+│   └── migration/                # Migration guides
+│
+└── README.md                     # This file
 ```
 
-## 🔒 Security & Privacy
+## 🚀 Quick Start
 
-- **Encrypted Sessions**: LinkedIn cookies are encrypted before storage
-- **Local Storage**: All data is stored locally on your machine
-- **No Data Sharing**: Your LinkedIn data never leaves your system
-- **Rate Limiting**: Built-in delays to respect LinkedIn's terms
+### 1. Install Dependencies
 
-## 🚨 Important Notes
-
-1. **LinkedIn Terms**: This tool respects LinkedIn's terms of service
-2. **Easy Apply Only**: Automatic applications work only with Easy Apply jobs
-3. **Session Management**: Keep your `.env` file secure
-4. **Rate Limiting**: Don't overload LinkedIn with too many requests
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-1. **Login Failed**
-   - Check your `.env` credentials
-   - Ensure 2FA is disabled or use app passwords
-   - Clear browser cache and try again
-
-2. **Jobs Not Loading**
-   - Check internet connection
-   - Verify LinkedIn is accessible
-   - Check browser console for errors
-
-3. **Apply Button Not Working**
-   - Only works with Easy Apply jobs
-   - Some jobs require manual application
-   - Check if you're logged in
-
-### Debug Mode
+#### Enhanced Server
 ```bash
-# Enable debug logging
-export DEBUG=1
+cd enhanced-mcp-server
+pip install -r requirements.txt
+```
+
+#### Legacy Server
+```bash
+cd legacy
+pip install -r requirements.txt
+```
+
+### 2. Run Health Check
+```bash
+cd enhanced-mcp-server
+python scripts/health_check.py
+```
+
+### 3. Start Enhanced Server
+```bash
+cd enhanced-mcp-server
+python scripts/start_enhanced_mcp_server.py
+```
+
+### 4. Start Legacy Server (if needed)
+```bash
+cd legacy
 python linkedin_browser_mcp.py
 ```
 
+## 🔄 Migration
+
+### Data Migration
+If you have existing data, run the migration script:
+```bash
+python scripts/migrate_data.py
+```
+
+This will:
+- Create a backup of your original files
+- Move database to shared location
+- Move sessions to shared location
+- Move logs to shared location
+- Validate the migration
+
+### Gradual Migration Strategy
+1. **Phase 1**: Run both systems simultaneously
+2. **Phase 2**: Migrate tools from legacy to enhanced
+3. **Phase 3**: Switch frontend to use enhanced server
+4. **Phase 4**: Deprecate legacy server
+
+## 📊 Benefits of This Structure
+
+### 1. **Clear Separation**
+- No conflicts between legacy and enhanced code
+- Easy to maintain both systems
+- Clear migration path
+
+### 2. **Shared Resources**
+- Database shared between both systems
+- Sessions can be migrated between systems
+- Logs centralized for monitoring
+
+### 3. **Gradual Migration**
+- Can run both systems simultaneously
+- Easy to switch between systems
+- No downtime during migration
+
+### 4. **Production Ready**
+- Docker support for both systems
+- Clear deployment strategy
+- Easy rollback if needed
+
+## 🔧 Configuration
+
+### Enhanced Server Configuration
+Located at `enhanced-mcp-server/config/mcp_config.json`:
+```json
+{
+  "database": {
+    "url": "sqlite:///../../shared/database/linkedin_jobs.db"
+  },
+  "sessions": {
+    "path": "../../shared/sessions"
+  },
+  "logging": {
+    "file": "../../shared/logs/enhanced_mcp_server.log"
+  }
+}
+```
+
+### Legacy Server Configuration
+Located at `legacy/config.json`:
+```json
+{
+  "database": {
+    "url": "sqlite:///../shared/database/linkedin_jobs.db"
+  },
+  "sessions": {
+    "path": "../shared/sessions"
+  }
+}
+```
+
+## 🐳 Docker Support
+
+### Enhanced Server
+```dockerfile
+FROM python:3.11-slim
+WORKDIR /app
+COPY enhanced-mcp-server/ .
+RUN pip install -r requirements.txt
+RUN playwright install chromium
+VOLUME ["/shared/database", "/shared/sessions", "/shared/logs"]
+EXPOSE 8000
+CMD ["python", "scripts/start_enhanced_mcp_server.py"]
+```
+
+### Legacy Server
+```dockerfile
+FROM python:3.11-slim
+WORKDIR /app
+COPY legacy/ .
+RUN pip install -r requirements.txt
+RUN playwright install chromium
+VOLUME ["/shared/database", "/shared/sessions"]
+EXPOSE 8001
+CMD ["python", "linkedin_browser_mcp.py"]
+```
+
+## 📈 Monitoring
+
+### Health Checks
+- Enhanced server: `enhanced-mcp-server/scripts/health_check.py`
+- Checks directory structure, dependencies, configuration, and server status
+
+### Logs
+- Enhanced server: `shared/logs/enhanced_mcp_server.log`
+- Legacy server: `shared/logs/legacy_mcp_server.log`
+
+## 🔍 Troubleshooting
+
+### Common Issues
+
+1. **Missing Dependencies**
+   ```bash
+   cd enhanced-mcp-server
+   pip install -r requirements.txt
+   ```
+
+2. **Directory Structure Issues**
+   ```bash
+   python scripts/migrate_data.py
+   ```
+
+3. **Permission Issues**
+   ```bash
+   # On Windows
+   icacls shared /grant Everyone:F /T
+   
+   # On Linux/Mac
+   chmod -R 755 shared/
+   ```
+
+4. **Database Issues**
+   ```bash
+   # Check if database exists
+   ls shared/database/linkedin_jobs.db
+   
+   # If not, run migration
+   python scripts/migrate_data.py
+   ```
+
+## 📚 Documentation
+
+- **Enhanced Server**: See `enhanced-mcp-server/` directory
+- **Legacy Server**: See `legacy/` directory
+- **Migration Guide**: See `docs/migration/`
+- **API Documentation**: See `docs/enhanced/`
+
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+1. **For Enhanced Server**: Work in `enhanced-mcp-server/`
+2. **For Legacy Server**: Work in `legacy/`
+3. **For Shared Resources**: Work in `shared/`
+4. **For Documentation**: Work in `docs/`
 
 ## 📄 License
 
-This project is for educational purposes. Please respect LinkedIn's terms of service.
-
-## 🆘 Support
-
-- Check the troubleshooting section above
-- Review the code comments for implementation details
-- Open an issue for bugs or feature requests
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ---
 
-**Happy Job Hunting! 🎯** 
+**Project Status**: Refactored with Enhanced MCP Server  
+**Last Updated**: 2025-07-03  
+**Next Review**: 2025-07-10 

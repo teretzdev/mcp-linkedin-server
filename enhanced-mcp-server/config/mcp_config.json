@@ -1,0 +1,64 @@
+{
+  "debug": true,
+  "log_level": "INFO",
+  "server": {
+    "host": "localhost",
+    "port": 8000,
+    "timeout": 30
+  },
+  "browser": {
+    "headless": true,
+    "timeout": 30000,
+    "max_retries": 3,
+    "viewport": {
+      "width": 1920,
+      "height": 1080
+    },
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  },
+  "security": {
+    "rate_limit": {
+      "requests_per_minute": 60,
+      "burst_size": 10
+    },
+    "session_timeout": 3600,
+    "max_sessions_per_user": 5,
+    "encryption_key_file": "../../shared/sessions/encryption_key.key"
+  },
+  "database": {
+    "url": "sqlite:///../../shared/database/linkedin_jobs.db",
+    "echo": false,
+    "pool_size": 10,
+    "max_overflow": 20
+  },
+  "linkedin": {
+    "base_url": "https://www.linkedin.com",
+    "login_url": "https://www.linkedin.com/login",
+    "jobs_url": "https://www.linkedin.com/jobs",
+    "max_jobs_per_search": 100,
+    "search_delay": 2
+  },
+  "ai": {
+    "gemini_api_key": "",
+    "max_tokens": 1000,
+    "temperature": 0.7,
+    "timeout": 30
+  },
+  "logging": {
+    "format": "json",
+    "file": "../../shared/logs/enhanced_mcp_server.log",
+    "max_size": "10MB",
+    "backup_count": 5
+  },
+  "monitoring": {
+    "health_check_interval": 30,
+    "metrics_enabled": true,
+    "alert_on_errors": true
+  },
+  "paths": {
+    "shared_database": "../../shared/database",
+    "shared_sessions": "../../shared/sessions",
+    "shared_logs": "../../shared/logs",
+    "shared_config": "../../shared/config"
+  }
+} 

@@ -460,7 +460,7 @@ def print_results(results: Dict[str, Any], verbose: bool = False):
         status = "✅ PASS" if result["success"] else "❌ FAIL"
         print(f"  {status} {result['test']}")
         
-        if result["error"]:
+        if not result["success"] and "error" in result:
             print(f"    Error: {result['error']}")
         
         if verbose and result.get("details"):

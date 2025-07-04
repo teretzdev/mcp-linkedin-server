@@ -1,0 +1,36 @@
+{
+  "debug": true,
+  "log_level": "INFO",
+  "server": {
+    "host": "localhost",
+    "port": 8001,
+    "timeout": 30
+  },
+  "browser": {
+    "headless": true,
+    "timeout": 30000,
+    "max_retries": 3
+  },
+  "database": {
+    "url": "sqlite:///../shared/database/linkedin_jobs.db",
+    "echo": false
+  },
+  "sessions": {
+    "path": "../shared/sessions",
+    "encryption_key_file": "../shared/sessions/encryption_key.key"
+  },
+  "logging": {
+    "file": "../shared/logs/legacy_mcp_server.log",
+    "level": "INFO"
+  },
+  "linkedin": {
+    "base_url": "https://www.linkedin.com",
+    "login_url": "https://www.linkedin.com/login",
+    "jobs_url": "https://www.linkedin.com/jobs"
+  },
+  "paths": {
+    "shared_database": "../shared/database",
+    "shared_sessions": "../shared/sessions",
+    "shared_logs": "../shared/logs"
+  }
+} 

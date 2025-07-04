@@ -335,43 +335,6 @@ async def mcp_client_context():
 
 
 # Convenience functions for common operations
-async def call_mcp_tool(tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
-    """Generic function to call any MCP tool"""
-    client = await get_mcp_client()
-    
-    # Map tool names to client methods
-    tool_mapping = {
-        "search_linkedin_jobs": lambda: client.search_jobs(
-            params.get("query", ""), 
-            params.get("location", ""), 
-            params.get("count", 10)
-        ),
-        "apply_to_linkedin_job": lambda: client.apply_job(
-            params.get("job_url", ""), 
-            params.get("resume_path")
-        ),
-        "save_linkedin_job": lambda: client.save_job(params.get("job_url", "")),
-        "list_applied_jobs": lambda: client.get_applied_jobs(params.get("user_id", "default")),
-        "list_saved_jobs": lambda: client.get_saved_jobs(params.get("user_id", "default")),
-        "get_job_recommendations": lambda: client.get_job_recommendations(params.get("user_id", "default")),
-        "update_application_status": lambda: client.update_application_status(
-            params.get("application_id", ""),
-            params.get("status", ""),
-            params.get("notes")
-        )
-    }
-    
-    if tool_name in tool_mapping:
-        return await tool_mapping[tool_name]()
-    else:
-        raise ValueError(f"Unknown MCP tool: {tool_name}")
-
-
-async def shutdown_mcp_client():
-    """Shutdown the MCP client (alias for close_mcp_client)"""
-    await close_mcp_client()
-
-
 async def search_jobs(keywords: str, location: str, limit: int = 10) -> Dict[str, Any]:
     """Search for jobs"""
     client = await get_mcp_client()
