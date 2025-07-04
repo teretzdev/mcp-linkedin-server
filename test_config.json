@@ -1,0 +1,170 @@
+{
+  "test_configuration": {
+    "environment": {
+      "python_min_version": "3.8.0",
+      "required_modules": [
+        "fastapi",
+        "uvicorn", 
+        "playwright",
+        "psutil",
+        "aiohttp",
+        "requests",
+        "jwt",
+        "google.generativeai"
+      ],
+      "required_ports": [8001, 8002, 8003, 3000],
+      "required_files": [
+        "api_bridge.py",
+        "linkedin_browser_mcp.py",
+        "auto_startup.py",
+        "requirements.txt",
+        "package.json"
+      ]
+    },
+    "performance": {
+      "max_response_time": 5.0,
+      "max_memory_usage": 512,
+      "max_concurrent_requests": 10,
+      "timeout": 30
+    },
+    "security": {
+      "password_min_length": 8,
+      "jwt_expiry_minutes": 30,
+      "rate_limit_requests": 100,
+      "rate_limit_window": 60
+    },
+    "coverage": {
+      "minimum_coverage": 80,
+      "critical_paths": [
+        "api_bridge.py",
+        "linkedin_browser_mcp.py",
+        "auto_startup.py",
+        "security_middleware.py",
+        "error_handler.py"
+      ]
+    }
+  },
+  "test_categories": {
+    "environment": {
+      "description": "Environment validation tests",
+      "tests": [
+        "python_version",
+        "dependencies",
+        "node_installation",
+        "file_permissions",
+        "environment_variables"
+      ],
+      "critical": true
+    },
+    "startup": {
+      "description": "Startup and configuration tests",
+      "tests": [
+        "psutil_compatibility",
+        "port_availability",
+        "service_startup",
+        "configuration_loading"
+      ],
+      "critical": true
+    },
+    "unit": {
+      "description": "Unit tests for individual components",
+      "tests": [
+        "data_validation",
+        "error_handling",
+        "utilities",
+        "models"
+      ],
+      "critical": false
+    },
+    "integration": {
+      "description": "Integration tests for component interaction",
+      "tests": [
+        "database_integration",
+        "mcp_integration",
+        "api_bridge_integration"
+      ],
+      "critical": true
+    },
+    "api": {
+      "description": "API endpoint tests",
+      "tests": [
+        "auth_endpoints",
+        "job_search_endpoints",
+        "application_endpoints",
+        "automation_endpoints"
+      ],
+      "critical": true
+    },
+    "security": {
+      "description": "Security and authentication tests",
+      "tests": [
+        "authentication",
+        "authorization",
+        "input_validation",
+        "rate_limiting"
+      ],
+      "critical": true
+    },
+    "performance": {
+      "description": "Performance and load tests",
+      "tests": [
+        "response_times",
+        "concurrent_requests",
+        "memory_usage"
+      ],
+      "critical": false
+    },
+    "e2e": {
+      "description": "End-to-end workflow tests",
+      "tests": [
+        "user_journey",
+        "automation_workflow"
+      ],
+      "critical": false
+    }
+  },
+  "test_data": {
+    "valid_emails": [
+      "test@example.com",
+      "user.name@domain.co.uk",
+      "user+tag@example.org"
+    ],
+    "invalid_emails": [
+      "invalid-email",
+      "@domain.com",
+      "user@",
+      "user.domain.com"
+    ],
+    "valid_urls": [
+      "https://linkedin.com/jobs/view/123",
+      "http://example.com/path?param=value",
+      "https://subdomain.example.org"
+    ],
+    "invalid_urls": [
+      "not-a-url",
+      "ftp://example.com",
+      "javascript:alert('xss')"
+    ],
+    "test_jobs": [
+      {
+        "title": "Software Engineer",
+        "company": "Tech Corp",
+        "location": "San Francisco, CA",
+        "url": "https://linkedin.com/jobs/view/123"
+      },
+      {
+        "title": "Data Scientist",
+        "company": "AI Startup",
+        "location": "New York, NY",
+        "url": "https://linkedin.com/jobs/view/456"
+      }
+    ]
+  },
+  "reporting": {
+    "output_formats": ["json", "html", "console"],
+    "include_details": true,
+    "include_timestamps": true,
+    "save_screenshots": true,
+    "log_level": "INFO"
+  }
+} 

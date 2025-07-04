@@ -23,6 +23,127 @@ A powerful LinkedIn job search automation tool built with FastMCP, Playwright, a
 - **Job Cards**: Easy-to-read job listings with apply/save buttons
 - **Mobile Responsive**: Works on desktop and mobile devices
 
+## 🎯 Enhanced Application Tracking
+
+The LinkedIn Job Hunter now includes comprehensive application tracking features to help you manage your job search effectively.
+
+### 📊 Application Tracker Features
+
+#### **Status Management**
+- **Multiple Status Types**: Applied, Under Review, Interview, Offer, Rejected, Withdrawn
+- **Visual Status Indicators**: Color-coded badges with icons for quick identification
+- **Status Updates**: Easily update application status with dropdown menus
+- **Progress Tracking**: See your application pipeline at a glance
+
+#### **Advanced Filtering & Search**
+- **Smart Search**: Search by job title, company, or location
+- **Status Filtering**: Filter applications by current status
+- **Sorting Options**: Sort by date applied, job title, company, or status
+- **Date Range Filtering**: Focus on recent or specific time periods
+
+#### **Notes & Follow-ups**
+- **Application Notes**: Add detailed notes to each application
+- **Follow-up Reminders**: Set reminders for follow-up actions
+- **Note History**: Track all notes with timestamps
+- **Quick Actions**: Mark follow-ups as completed
+
+#### **Analytics Dashboard**
+- **Performance Metrics**: Success rate, response rate, daily averages
+- **Status Breakdown**: Visual charts showing application distribution
+- **Company Analysis**: Top companies you've applied to
+- **Monthly Trends**: Track application volume over time
+- **Insights & Recommendations**: AI-powered suggestions for improvement
+
+#### **Export & Reporting**
+- **CSV Export**: Export application data for external analysis
+- **Custom Reports**: Generate reports based on filters and date ranges
+- **Data Backup**: Secure local storage of all application data
+
+### 🔄 Follow-up Tracker
+
+#### **Smart Reminders**
+- **Overdue Alerts**: Highlight follow-ups that are past due
+- **Upcoming Reminders**: Show follow-ups due in the next week
+- **Multiple Types**: Email, phone call, LinkedIn message tracking
+- **Completion Tracking**: Mark follow-ups as completed
+
+#### **Follow-up Management**
+- **Add Follow-ups**: Create reminders for any application
+- **Due Date Tracking**: Set specific dates for follow-up actions
+- **Notes Integration**: Add context to each follow-up
+- **Bulk Actions**: Manage multiple follow-ups efficiently
+
+### 📈 Analytics & Insights
+
+#### **Key Performance Indicators**
+- **Application Success Rate**: Percentage of applications leading to interviews/offers
+- **Response Rate**: Percentage of applications receiving any response
+- **Daily Application Volume**: Average applications per day
+- **Company Engagement**: Most responsive companies
+
+#### **Visual Analytics**
+- **Status Distribution Charts**: See your application pipeline
+- **Monthly Trend Graphs**: Track application volume over time
+- **Company Performance**: Identify most promising companies
+- **Geographic Analysis**: Track applications by location
+
+#### **Smart Recommendations**
+- **Performance Insights**: AI-powered analysis of your job search
+- **Improvement Suggestions**: Actionable advice based on your data
+- **Success Patterns**: Identify what's working for you
+- **Risk Alerts**: Warning signs for potential issues
+
+### 🛠️ How to Use
+
+#### **Getting Started**
+1. **Navigate to Applications**: Click "Applications" in the sidebar
+2. **View Your Pipeline**: See all applications with current status
+3. **Update Status**: Use dropdown menus to update application progress
+4. **Add Notes**: Click the edit icon to add notes to any application
+
+#### **Using Follow-ups**
+1. **Go to Follow-ups**: Click "Follow-ups" in the sidebar
+2. **Add Reminder**: Click "Add Follow-up" to create a new reminder
+3. **Set Due Date**: Choose when you need to follow up
+4. **Track Progress**: Mark follow-ups as completed when done
+
+#### **Analyzing Performance**
+1. **Open Analytics**: Click "Analytics" in the sidebar
+2. **Choose Time Range**: Select the period you want to analyze
+3. **Review Metrics**: Check your success and response rates
+4. **Export Data**: Download reports for external analysis
+
+### 📱 Mobile-Friendly Design
+
+All application tracking features are fully responsive and work seamlessly on:
+- **Desktop Computers**: Full-featured experience with all tools
+- **Tablets**: Touch-optimized interface for easy navigation
+- **Mobile Phones**: Streamlined view for on-the-go tracking
+
+### 🔒 Data Privacy & Security
+
+- **Local Storage**: All application data is stored locally on your device
+- **No Cloud Sync**: Your data never leaves your machine
+- **Encrypted Sessions**: Secure handling of LinkedIn credentials
+- **Export Control**: You control what data to export and when
+
+### 🚀 Advanced Features
+
+#### **Integration with Job Search**
+- **Automatic Tracking**: Applications submitted through the tool are automatically tracked
+- **Easy Apply Integration**: Seamless tracking of Easy Apply submissions
+- **Manual Entry**: Add applications submitted outside the tool
+
+#### **Customization Options**
+- **Status Customization**: Add custom status types if needed
+- **Note Templates**: Create reusable note templates
+- **Filter Presets**: Save commonly used filter combinations
+
+#### **Automation Features**
+- **Auto-reminders**: Automatic follow-up suggestions based on application age
+- **Status Suggestions**: AI-powered status update recommendations
+- **Performance Alerts**: Notifications when metrics need attention
+
 ## 🏗️ Architecture
 
 ```

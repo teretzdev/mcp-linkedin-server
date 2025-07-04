@@ -12,10 +12,14 @@ const SettingsPage = () => {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState(''); // 'success' or 'error'
   const [serverStatus, setServerStatus] = useState('disconnected');
+  const [geminiKey, setGeminiKey] = useState('');
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     checkServerStatus();
     loadCredentials();
+    const storedKey = localStorage.getItem('gemini_api_key') || '';
+    setGeminiKey(storedKey);
   }, []);
 
   const checkServerStatus = async () => {
@@ -91,6 +95,13 @@ const SettingsPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSave = (e) => {
+    e.preventDefault();
+    localStorage.setItem('gemini_api_key', geminiKey);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
   };
 
   return (
@@ -240,6 +251,72 @@ const SettingsPage = () => {
           <li>• Sessions are automatically managed and secured</li>
           <li>• Keep your credentials safe and don't share them</li>
         </ul>
+      </div>
+
+      {/* Gemini API Key */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+          <User className="w-5 h-5 mr-2" />
+          Gemini API Key
+        </h2>
+        
+        <form onSubmit={handleSave} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Gemini API Key
+            </label>
+            <input
+              type="text"
+              value={geminiKey}
+              onChange={e => setGeminiKey(e.target.value)}
+              placeholder="Paste your Gemini API key here"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Required for AI-powered features (Google Gemini). Your key is stored securely in your browser.
+            </p>
+          </div>
+          <button
+            type="submit"
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Save Settings
+          </button>
+          {saved && (
+            <div className="text-green-600 font-medium mt-2">Gemini API key saved!</div>
+          )}
+        </form>
+      </div>
+
+      {/* AI Features Status */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+          <User className="w-5 h-5 mr-2" />
+          AI Features Status
+        </h2>
+        
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">Gemini API Key</span>
+            <span className="text-sm text-gray-500">
+              {geminiKey ? <span className="text-green-600">Set</span> : <span className="text-red-600">Not Set</span>}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">Resume Optimization</span>
+            <span className="text-sm text-gray-500">
+              <span className="text-green-600">Enabled</span>
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">Easy Apply Assistant</span>
+            <span className="text-sm text-gray-500">
+              <span className="text-green-600">Enabled</span>
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -6,8 +6,10 @@ Demonstrates the intelligent automation capabilities
 
 import asyncio
 import json
+import pytest
 from llm_controller_simple import SimpleLLMController
 
+@pytest.mark.asyncio
 async def test_llm_features():
     """Test various LLM controller features"""
     print("🤖 Testing LLM Controller Features")

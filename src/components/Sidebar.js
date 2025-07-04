@@ -11,23 +11,41 @@ import {
   LogOut,
   Linkedin,
   CheckCircle,
-  Clock
+  Clock,
+  Bot,
+  Briefcase,
+  Bookmark,
+  FileText,
+  MessageSquare,
+  Zap,
+  Brain,
+  Bell,
+  BarChart3
 } from 'lucide-react';
 
-const Sidebar = ({ isLoggedIn, serverStatus, onLogin, onLogout }) => {
+const Sidebar = ({ isLoggedIn, serverStatus, onLogin, onLogout, currentUser }) => {
   const location = useLocation();
 
-  const navigation = [
-    { name: 'Dashboard', href: '/', icon: Home },
-    { name: 'Job Search', href: '/jobs', icon: Search },
-    { name: 'Applications', href: '/applications', icon: CheckCircle },
-    { name: 'Saved Jobs', href: '/saved', icon: Clock },
-    { name: 'Settings', href: '/settings', icon: Settings },
+  const navigationItems = [
+    { path: '/dashboard', icon: Home, label: 'Dashboard' },
+    { path: '/job-search', icon: Search, label: 'Job Search' },
+    { path: '/resume-manager', icon: FileText, label: 'Resume Manager' },
+    { path: '/easy-apply', icon: MessageSquare, label: 'Easy Apply Assistant' },
+    { path: '/applicant-knowledge', icon: Brain, label: 'Knowledge Base' },
+    { path: '/applications', icon: Briefcase, label: 'Applications' },
+    { path: '/follow-ups', icon: Bell, label: 'Follow-ups' },
+    { path: '/analytics', icon: BarChart3, label: 'Analytics' },
+    { path: '/saved-jobs', icon: Bookmark, label: 'Saved Jobs' },
+    { path: '/automation', icon: Zap, label: 'Automation' },
+    { path: '/ai-automation', icon: Bot, label: 'AI Automation' },
+    { path: '/settings', icon: Settings, label: 'Settings' }
   ];
 
-  const filteredNavigation = navigation.filter(item => 
+  const filteredNavigation = navigationItems.filter(item => 
     !item.requiresAuth || (item.requiresAuth && isLoggedIn)
   );
+
+  const isActive = (path) => location.pathname === path;
 
   return (
     <div className="w-64 bg-white shadow-lg border-r border-gray-200 flex flex-col">
@@ -39,24 +57,39 @@ const Sidebar = ({ isLoggedIn, serverStatus, onLogin, onLogout }) => {
         </div>
       </div>
 
+      {/* User Profile */}
+      {currentUser && (
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center space-x-3">
+            <img 
+              src={currentUser.avatar} 
+              alt={currentUser.name}
+              className="w-10 h-10 rounded-full"
+            />
+            <div>
+              <p className="font-medium text-gray-800">{currentUser.name}</p>
+              <p className="text-sm text-gray-600">{currentUser.email}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Navigation */}
       <nav className="flex-1 px-4 py-6 space-y-2">
         {filteredNavigation.map((item) => {
           const Icon = item.icon;
-          const isActive = location.pathname === item.href;
-          
           return (
             <Link
-              key={item.name}
-              to={item.href}
+              key={item.path}
+              to={item.path}
               className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                isActive
+                isActive(item.path)
                   ? 'bg-linkedin-100 text-linkedin-700 border border-linkedin-200'
                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
               }`}
             >
               <Icon className="w-5 h-5" />
-              <span>{item.name}</span>
+              <span>{item.label}</span>
             </Link>
           );
         })}

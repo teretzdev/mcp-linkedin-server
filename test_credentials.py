@@ -6,6 +6,7 @@ Test script for credential saving functionality
 import os
 import requests
 import json
+import pytest
 from dotenv import load_dotenv
 
 def test_credential_saving():
@@ -25,10 +26,10 @@ def test_credential_saving():
             print("✅ API Bridge is running")
         else:
             print("❌ API Bridge returned error status")
-            return False
+            pytest.skip("API Bridge returned error status")
     except requests.exceptions.RequestException as e:
         print(f"❌ API Bridge is not running: {e}")
-        return False
+        pytest.skip(f"API Bridge is not running: {e}")
     
     # Test 1: Save credentials
     print("\n📝 Test 1: Saving credentials...")
@@ -49,11 +50,11 @@ def test_credential_saving():
             print("✅ Credentials saved successfully")
         else:
             print(f"❌ Failed to save credentials: {response.text}")
-            return False
+            assert False, f"Failed to save credentials: {response.text}"
             
     except Exception as e:
         print(f"❌ Error saving credentials: {e}")
-        return False
+        assert False, f"Error saving credentials: {e}"
     
     # Test 2: Retrieve credentials
     print("\n📖 Test 2: Retrieving credentials...")
@@ -69,14 +70,14 @@ def test_credential_saving():
                 print("✅ Credentials retrieved successfully")
             else:
                 print(f"❌ Retrieved username doesn't match: {data.get('username')}")
-                return False
+                assert False, f"Retrieved username doesn't match: {data.get('username')}"
         else:
             print(f"❌ Failed to retrieve credentials: {response.text}")
-            return False
+            assert False, f"Failed to retrieve credentials: {response.text}"
             
     except Exception as e:
         print(f"❌ Error retrieving credentials: {e}")
-        return False
+        assert False, f"Error retrieving credentials: {e}"
     
     # Test 3: Check .env file
     print("\n📁 Test 3: Checking .env file...")
@@ -92,11 +93,11 @@ def test_credential_saving():
             print("✅ .env file updated correctly")
         else:
             print("❌ .env file not updated correctly")
-            return False
+            assert False, ".env file not updated correctly"
             
     except Exception as e:
         print(f"❌ Error checking .env file: {e}")
-        return False
+        assert False, f"Error checking .env file: {e}"
     
     # Test 4: Test login (this will fail but should not crash)
     print("\n🔐 Test 4: Testing login (expected to fail with test credentials)...")
@@ -116,7 +117,6 @@ def test_credential_saving():
         print(f"❌ Error testing login: {e}")
     
     print("\n🎉 All tests completed!")
-    return True
 
 def check_env_file():
     """Check the current .env file contents"""

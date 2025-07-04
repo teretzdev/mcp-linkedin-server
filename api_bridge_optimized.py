@@ -4,7 +4,7 @@ Optimized API Bridge for LinkedIn MCP Server
 Provides HTTP endpoints for the React frontend with improved performance
 """
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
@@ -13,13 +13,18 @@ import json
 import subprocess
 import sys
 import os
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from dotenv import load_dotenv
 import socket
 import time
 import logging
 from functools import lru_cache
 import aiohttp
+from datetime import datetime, timedelta
+
+# Database imports
+from database.database import DatabaseManager
+from database.models import User, SavedJob, AppliedJob, SessionData, AutomationLog, JobRecommendation, SystemSettings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -34,6 +39,9 @@ app = FastAPI(
 
 # Load environment variables
 load_dotenv()
+
+# Initialize database
+db_manager = DatabaseManager()
 
 # Add performance middleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -309,6 +317,325 @@ async def get_job_recommendations():
     except Exception as e:
         logger.error(f"Error getting recommendations: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get recommendations: {str(e)}")
+
+# Database-enabled endpoints
+@app.post("/api/user/profile")
+async def update_user_profile(request: Dict[str, Any]):
+    """Update user profile in database"""
+    try:
+        username = request.get('username', 'default_user')
+        user_id = db_manager.get_user(username)
+        if not user_id:
+            # Extract only the fields that create_user accepts
+            user_data = {
+                'email': request.get('email'),
+                'current_position': request.get('current_position'),
+                'skills': request.get('skills', []),
+                'target_roles': request.get('target_roles', []),
+                'target_locations': request.get('target_locations', []),
+                'experience_years': request.get('experience_years'),
+                'resume_url': request.get('resume_url')
+            }
+            user_id = db_manager.create_user(username, **user_data)
+        
+        if user_id:
+            # Extract only the fields that update_user accepts (excluding username)
+            update_data = {k: v for k, v in request.items() if k != 'username'}
+            success = db_manager.update_user(username, **update_data)
+            if success:
+                return {"success": True, "message": "Profile updated successfully"}
+            else:
+                raise HTTPException(status_code=500, detail="Failed to update profile")
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create user")
+    except Exception as e:
+        logger.error(f"Error updating user profile: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update profile: {str(e)}")
+
+@app.get("/api/user/profile")
+async def get_user_profile():
+    """Get user profile from database"""
+    try:
+        # For now, get the first user (in a real app, you'd use authentication)
+        with db_manager.get_session() as session:
+            user = session.query(User).first()
+            if user:
+                return {"success": True, "user": user.to_dict()}
+            else:
+                return {"success": False, "message": "No user found"}
+    except Exception as e:
+        logger.error(f"Error getting user profile: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get profile: {str(e)}")
+
+@app.post("/api/save_job")
+async def save_job_db(request: Dict[str, Any]):
+    """Save a job using database"""
+    try:
+        username = request.get('username', 'default_user')
+        user_id = db_manager.get_user(username)
+        if not user_id:
+            user_id = db_manager.create_user(username)
+        
+        if user_id:
+            # Ensure all required fields are present
+            job_data = {
+                'job_id': request.get('job_id'),
+                'title': request.get('title'),
+                'company': request.get('company'),
+                'location': request.get('location'),
+                'job_url': request.get('job_url'),
+                'description': request.get('description'),
+                'salary_range': request.get('salary_range'),
+                'job_type': request.get('job_type'),
+                'experience_level': request.get('experience_level'),
+                'easy_apply': request.get('easy_apply', False),
+                'remote_work': request.get('remote_work', False),
+                'notes': request.get('notes'),
+                'tags': request.get('tags', [])
+            }
+            
+            saved_job = db_manager.save_job(user_id, job_data)
+            if saved_job:
+                return {"success": True, "message": "Job saved successfully", "job": saved_job}
+            else:
+                raise HTTPException(status_code=500, detail="Failed to save job")
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create user")
+    except Exception as e:
+        logger.error(f"Error saving job: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save job: {str(e)}")
+
+@app.get("/api/saved_jobs")
+async def get_saved_jobs():
+    """Get saved jobs from database"""
+    try:
+        username = 'default_user'  # In a real app, get from authentication
+        user_id = db_manager.get_user(username)
+        if user_id:
+            jobs = db_manager.get_saved_jobs(user_id)
+            return {"success": True, "jobs": jobs, "count": len(jobs)}
+        else:
+            return {"success": False, "jobs": [], "count": 0}
+    except Exception as e:
+        logger.error(f"Error getting saved jobs: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get saved jobs: {str(e)}")
+
+@app.post("/api/apply_job")
+async def apply_job_db(request: Dict[str, Any]):
+    """Apply to a job using database"""
+    try:
+        username = request.get('username', 'default_user')
+        user_id = db_manager.get_user(username)
+        if not user_id:
+            user_id = db_manager.create_user(username)
+        
+        if user_id:
+            job_data = db_manager.apply_to_job(user_id, request)
+            if job_data:
+                return {"success": True, "message": "Application submitted successfully", "job": job_data}
+            else:
+                raise HTTPException(status_code=500, detail="Failed to submit application")
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create user")
+    except Exception as e:
+        logger.error(f"Error applying to job: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to apply to job: {str(e)}")
+
+@app.get("/api/applied_jobs")
+async def get_applied_jobs():
+    """Get applied jobs from database"""
+    try:
+        username = 'default_user'  # In a real app, get from authentication
+        user_id = db_manager.get_user(username)
+        if user_id:
+            jobs = db_manager.get_applied_jobs(user_id)
+            return {"success": True, "jobs": jobs, "count": len(jobs)}
+        else:
+            return {"success": False, "jobs": [], "count": 0}
+    except Exception as e:
+        logger.error(f"Error getting applied jobs: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get applied jobs: {str(e)}")
+
+@app.post("/api/session/start")
+async def start_session(request: Dict[str, Any]):
+    """Start a new session"""
+    try:
+        username = request.get('username', 'default_user')
+        user_id = db_manager.get_user(username)
+        if not user_id:
+            user_id = db_manager.create_user(username)
+        
+        if user_id:
+            session_data = db_manager.create_session(user_id, **request)
+            if session_data:
+                return {"success": True, "message": "Session started successfully", "session": session_data}
+            else:
+                raise HTTPException(status_code=500, detail="Failed to start session")
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create user")
+    except Exception as e:
+        logger.error(f"Error starting session: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to start session: {str(e)}")
+
+@app.post("/api/session/update")
+async def update_session(request: Dict[str, Any], session_id: str = Query(...)):
+    """Update session data"""
+    try:
+        success = db_manager.update_session(session_id, **request)
+        if success:
+            return {"success": True, "message": "Session updated successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="Session not found")
+    except Exception as e:
+        logger.error(f"Error updating session: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update session: {str(e)}")
+
+@app.post("/api/session/end")
+async def end_session(session_id: str = Query(...)):
+    """End a session"""
+    try:
+        success = db_manager.end_session(session_id)
+        if success:
+            return {"success": True, "message": "Session ended successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="Session not found")
+    except Exception as e:
+        logger.error(f"Error ending session: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to end session: {str(e)}")
+
+@app.get("/api/analytics/logs")
+async def get_automation_logs():
+    """Get automation logs"""
+    try:
+        username = 'default_user'  # In a real app, get from authentication
+        user_id = db_manager.get_user(username)
+        if user_id:
+            logs = db_manager.get_automation_logs(user_id)
+            return {"success": True, "logs": logs, "count": len(logs)}
+        else:
+            return {"success": False, "logs": [], "count": 0}
+    except Exception as e:
+        logger.error(f"Error getting automation logs: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get logs: {str(e)}")
+
+@app.get("/api/analytics/stats")
+async def get_analytics_stats():
+    """Get analytics statistics"""
+    try:
+        username = 'default_user'  # In a real app, get from authentication
+        user_id = db_manager.get_user(username)
+        if user_id:
+            with db_manager.get_session() as session:
+                # Get basic stats
+                saved_count = session.query(SavedJob).filter(SavedJob.user_id == user_id).count()
+                applied_count = session.query(AppliedJob).filter(AppliedJob.user_id == user_id).count()
+                session_count = session.query(SessionData).filter(SessionData.user_id == user_id).count()
+                log_count = session.query(AutomationLog).filter(AutomationLog.user_id == user_id).count()
+                
+                stats = {
+                    "saved_jobs": saved_count,
+                    "applied_jobs": applied_count,
+                    "sessions": session_count,
+                    "automation_logs": log_count
+                }
+                return {"success": True, "stats": stats}
+        else:
+            return {"success": False, "stats": {}}
+    except Exception as e:
+        logger.error(f"Error getting analytics stats: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}")
+
+@app.get("/api/database/stats")
+async def get_database_stats():
+    """Get database statistics"""
+    try:
+        stats = db_manager.get_database_stats()
+        return {"success": True, "stats": stats}
+    except Exception as e:
+        logger.error(f"Error getting database stats: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get database stats: {str(e)}")
+
+@app.post("/api/database/backup")
+async def backup_database():
+    """Create database backup"""
+    try:
+        backup_path = f"backups/linkedin_jobs_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+        success = db_manager.backup_database(backup_path)
+        if success:
+            return {"success": True, "message": f"Database backed up to {backup_path}"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create backup")
+    except Exception as e:
+        logger.error(f"Error creating backup: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create backup: {str(e)}")
+
+@app.post("/api/database/cleanup")
+async def cleanup_database(days: int = Query(30)):
+    """Clean up old data"""
+    try:
+        cleaned_count = db_manager.cleanup_old_data(days)
+        return {"success": True, "message": f"Cleaned up {cleaned_count} old records"}
+    except Exception as e:
+        logger.error(f"Error cleaning database: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to clean database: {str(e)}")
+
+@app.post("/api/settings/{setting_key}")
+async def set_system_setting(setting_key: str, value: str = Query(...), setting_type: str = Query('string'), description: str = Query(None)):
+    """Set a system setting"""
+    try:
+        success = db_manager.set_setting(setting_key, value, setting_type, description)
+        if success:
+            return {"success": True, "message": f"Setting {setting_key} updated successfully"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to update setting")
+    except Exception as e:
+        logger.error(f"Error setting system setting: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to set setting: {str(e)}")
+
+@app.get("/api/settings/{setting_key}")
+async def get_system_setting(setting_key: str):
+    """Get a system setting"""
+    try:
+        value = db_manager.get_setting(setting_key)
+        if value is not None:
+            return {"success": True, "value": value}
+        else:
+            raise HTTPException(status_code=404, detail="Setting not found")
+    except Exception as e:
+        logger.error(f"Error getting system setting: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get setting: {str(e)}")
+
+@app.post("/api/update_credentials")
+async def update_credentials(request: CredentialsRequest):
+    """Update LinkedIn credentials (legacy endpoint)"""
+    try:
+        # Validate credentials
+        if not request.username or not request.password:
+            raise HTTPException(status_code=400, detail="Username and password are required")
+        
+        # Update .env file
+        env_content = f"""# LinkedIn Credentials
+LINKEDIN_USERNAME={request.username}
+LINKEDIN_PASSWORD={request.password}
+
+OPENAI_API_KEY=
+
+# Other Configuration
+DEBUG=true
+"""
+        
+        with open('.env', 'w') as f:
+            f.write(env_content)
+        
+        # Clear cache to force reload
+        get_cached_credentials.cache_clear()
+        
+        logger.info(f"Credentials updated for user: {request.username}")
+        return {"success": True, "message": "Credentials updated successfully"}
+        
+    except Exception as e:
+        logger.error(f"Error updating credentials: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update credentials: {str(e)}")
 
 async def cleanup_cache():
     """Clean up old cache entries"""

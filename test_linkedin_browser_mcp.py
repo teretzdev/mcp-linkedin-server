@@ -5,22 +5,31 @@ from linkedin_browser_mcp import (
     save_cookies,
     load_cookies,
     login_linkedin,
-    login_linkedin_secure,
+    _login_linkedin_secure,
+    _view_linkedin_profile,
+    _interact_with_linkedin_post,
     browse_linkedin_feed,
     search_linkedin_profiles,
-    view_linkedin_profile,
-    interact_with_linkedin_post
+    mcp
 )
+from fastmcp import Context
 
-class MockContext:
+class MockContext(Context):
+    def __init__(self, fastmcp=None):
+        super().__init__(fastmcp)
+        self.messages = []
+        self.errors = []
+        self.progress = []
     def info(self, message):
+        self.messages.append(f"INFO: {message}")
         print(f"INFO: {message}")
-        
     def error(self, message):
+        self.errors.append(f"ERROR: {message}")
         print(f"ERROR: {message}")
-        
-    async def report_progress(self, current, total):
-        print(f"Progress: {current}/{total}")
+    async def report_progress(self, current, total, message=None):
+        progress = {"current": current, "total": total, "message": message}
+        self.progress.append(progress)
+        print(f"Progress: {current}/{total} - {message}")
 
 @pytest.mark.asyncio
 async def test_browser_session():
@@ -32,52 +41,52 @@ async def test_browser_session():
 
 @pytest.mark.asyncio
 async def test_login_linkedin_secure_missing_credentials():
-    ctx = MockContext()
+    ctx = MockContext(fastmcp=mcp)
     # Clear environment variables
     if 'LINKEDIN_USERNAME' in os.environ:
         del os.environ['LINKEDIN_USERNAME']
     if 'LINKEDIN_PASSWORD' in os.environ:
         del os.environ['LINKEDIN_PASSWORD']
-    result = await login_linkedin_secure(ctx)
+    result = await _login_linkedin_secure(ctx)
     assert result["status"] == "error"
     assert "Missing LinkedIn credentials" in result["message"]
 
 @pytest.mark.asyncio
 async def test_login_linkedin_secure_invalid_email():
-    ctx = MockContext()
+    ctx = MockContext(fastmcp=mcp)
     os.environ['LINKEDIN_USERNAME'] = 'invalid-email'
     os.environ['LINKEDIN_PASSWORD'] = 'password123'
-    result = await login_linkedin_secure(ctx)
+    result = await _login_linkedin_secure(ctx)
     assert result["status"] == "error"
     assert "Invalid email format" in result["message"]
 
 @pytest.mark.asyncio
 async def test_login_linkedin_secure_short_password():
-    ctx = MockContext()
+    ctx = MockContext(fastmcp=mcp)
     os.environ['LINKEDIN_USERNAME'] = 'test@example.com'
     os.environ['LINKEDIN_PASSWORD'] = 'short'
-    result = await login_linkedin_secure(ctx)
+    result = await _login_linkedin_secure(ctx)
     assert result["status"] == "error"
-    assert "password must be at least 8 characters" in result["message"]
+    assert "password must be at least 8 characters" in result["message"].lower()
 
 @pytest.mark.asyncio
 async def test_view_linkedin_profile_invalid_url():
-    ctx = MockContext()
-    result = await view_linkedin_profile("https://invalid-url.com", ctx)
+    ctx = MockContext(fastmcp=mcp)
+    result = await _view_linkedin_profile("https://invalid-url.com", ctx)
     assert result["status"] == "error"
     assert "Invalid LinkedIn profile URL" in result["message"]
 
 @pytest.mark.asyncio
 async def test_interact_with_linkedin_post_invalid_url():
-    ctx = MockContext()
-    result = await interact_with_linkedin_post("https://invalid-url.com", ctx)
+    ctx = MockContext(fastmcp=mcp)
+    result = await _interact_with_linkedin_post("https://invalid-url.com", ctx)
     assert result["status"] == "error"
     assert "Invalid LinkedIn post URL" in result["message"]
 
 @pytest.mark.asyncio
 async def test_interact_with_linkedin_post_invalid_action():
-    ctx = MockContext()
-    result = await interact_with_linkedin_post(
+    ctx = MockContext(fastmcp=mcp)
+    result = await _interact_with_linkedin_post(
         "https://linkedin.com/posts/123",
         ctx,
         action="invalid"

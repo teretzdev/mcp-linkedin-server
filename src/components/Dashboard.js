@@ -27,7 +27,7 @@ const Dashboard = ({ isLoggedIn, serverStatus }) => {
       title: 'Search Software Jobs',
       description: 'Find software engineering, development, and tech roles',
       icon: Search,
-      href: '/jobs',
+      href: '/job-search',
       color: 'bg-blue-500',
       requiresAuth: true,
       action: () => {
@@ -37,14 +37,14 @@ const Dashboard = ({ isLoggedIn, serverStatus }) => {
           location: '',
           count: 10
         }));
-        window.location.href = '/jobs';
+        window.location.href = '/job-search';
       }
     },
     {
       title: 'Search Remote Jobs',
       description: 'Find remote and work-from-home opportunities',
       icon: Search,
-      href: '/jobs',
+      href: '/job-search',
       color: 'bg-green-500',
       requiresAuth: true,
       action: () => {
@@ -53,7 +53,7 @@ const Dashboard = ({ isLoggedIn, serverStatus }) => {
           location: 'Remote',
           count: 10
         }));
-        window.location.href = '/jobs';
+        window.location.href = '/job-search';
       }
     },
     {
@@ -68,7 +68,7 @@ const Dashboard = ({ isLoggedIn, serverStatus }) => {
       title: 'Job Recommendations',
       description: 'Get personalized job suggestions from LinkedIn',
       icon: TrendingUp,
-      href: '/saved',
+      href: '/saved-jobs',
       color: 'bg-orange-500',
       requiresAuth: true
     },
@@ -76,7 +76,7 @@ const Dashboard = ({ isLoggedIn, serverStatus }) => {
       title: 'Saved Jobs',
       description: 'Review jobs you\'ve saved for later',
       icon: Clock,
-      href: '/saved',
+      href: '/saved-jobs',
       color: 'bg-indigo-500',
       requiresAuth: true
     },
@@ -199,23 +199,24 @@ const Dashboard = ({ isLoggedIn, serverStatus }) => {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredActions.map((action, index) => (
-            <div
-              key={index}
-              onClick={action.action || (() => window.location.href = action.href)}
-              className="block p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow cursor-pointer"
-            >
-              <div className="flex items-center space-x-3">
-                <div className={`p-2 ${action.color} rounded-lg`}>
-                  <action.icon className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-medium text-gray-900">{action.title}</h3>
-                  <p className="text-sm text-gray-600">{action.description}</p>
+          {filteredActions.map((action, index) => {
+            const Icon = action.icon;
+            return (
+              <div
+                key={index}
+                className={`${action.color} rounded-lg p-4 text-white cursor-pointer hover:opacity-90 transition-opacity`}
+                onClick={action.action || (() => window.location.href = action.href)}
+              >
+                <div className="flex items-center space-x-3">
+                  <Icon className="w-6 h-6" />
+                  <div>
+                    <h3 className="font-semibold">{action.title}</h3>
+                    <p className="text-sm opacity-90">{action.description}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -224,40 +225,26 @@ const Dashboard = ({ isLoggedIn, serverStatus }) => {
         <h2 className="text-xl font-semibold text-gray-900 mb-4">System Status</h2>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">API Bridge Status</span>
-            <div className="flex items-center space-x-2">
-              <div className={`w-3 h-3 rounded-full ${serverStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <span className="text-sm text-gray-600">
-                {serverStatus === 'connected' ? 'LinkedIn MCP Server Connected' : 'LinkedIn MCP Server Disconnected'}
-              </span>
-            </div>
+            <span className="text-gray-600">API Bridge</span>
+            <span className={`px-2 py-1 rounded text-sm font-medium ${
+              serverStatus === 'connected' 
+                ? 'bg-green-100 text-green-800' 
+                : 'bg-red-100 text-red-800'
+            }`}>
+              {serverStatus === 'connected' ? 'Connected' : 'Disconnected'}
+            </span>
           </div>
-          
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">LinkedIn Credentials</span>
-            <div className="flex items-center space-x-2">
-              <div className={`w-3 h-3 rounded-full ${credentialsConfigured ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <span className={`text-sm ${credentialsConfigured ? 'text-green-600' : 'text-red-600'}`}>
-                {credentialsConfigured ? 'Configured' : 'Not configured'}
-              </span>
-            </div>
+            <span className="text-gray-600">LinkedIn Credentials</span>
+            <span className={`px-2 py-1 rounded text-sm font-medium ${
+              credentialsConfigured 
+                ? 'bg-green-100 text-green-800' 
+                : 'bg-yellow-100 text-yellow-800'
+            }`}>
+              {credentialsConfigured ? 'Configured' : 'Not Configured'}
+            </span>
           </div>
         </div>
-        
-        {!credentialsConfigured && (
-          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm text-yellow-800 mb-2">
-              LinkedIn credentials not configured. Please set up your credentials to start using the job search features.
-            </p>
-            <Link
-              to="/settings"
-              className="inline-flex items-center space-x-1 text-sm text-yellow-700 hover:text-yellow-800 font-medium"
-            >
-              <span>Go to Settings</span>
-              <span>→</span>
-            </Link>
-          </div>
-        )}
       </div>
     </div>
   );

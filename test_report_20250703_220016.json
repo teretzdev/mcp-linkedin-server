@@ -1,0 +1,260 @@
+{
+  "summary": {
+    "total_tests": 28,
+    "passed": 26,
+    "failed": 2,
+    "success_rate": 92.85714285714286,
+    "total_duration": 10.97545576095581,
+    "start_time": "2025-07-04T05:00:05.372543",
+    "end_time": "2025-07-04T05:00:16.355544"
+  },
+  "results": [
+    {
+      "test_name": "Python Version",
+      "success": true,
+      "duration": 0.0,
+      "error": null,
+      "details": {
+        "version": "3.11.9"
+      },
+      "timestamp": "2025-07-04T05:00:05.373044"
+    },
+    {
+      "test_name": "Dependencies",
+      "success": true,
+      "duration": 1.2499992847442627,
+      "error": null,
+      "details": {
+        "modules_checked": 8
+      },
+      "timestamp": "2025-07-04T05:00:06.623043"
+    },
+    {
+      "test_name": "Node.js Installation",
+      "success": false,
+      "duration": 0.03500056266784668,
+      "error": "[WinError 2] The system cannot find the file specified",
+      "details": {},
+      "timestamp": "2025-07-04T05:00:06.658043"
+    },
+    {
+      "test_name": "File Permissions",
+      "success": true,
+      "duration": 0.001497507095336914,
+      "error": null,
+      "details": {},
+      "timestamp": "2025-07-04T05:00:06.660044"
+    },
+    {
+      "test_name": "Environment Variables",
+      "success": true,
+      "duration": 0.006497383117675781,
+      "error": null,
+      "details": {},
+      "timestamp": "2025-07-04T05:00:06.667042"
+    },
+    {
+      "test_name": "psutil Compatibility",
+      "success": true,
+      "duration": 0.37000179290771484,
+      "error": null,
+      "details": {
+        "platform": "Windows"
+      },
+      "timestamp": "2025-07-04T05:00:07.037545"
+    },
+    {
+      "test_name": "Port Availability",
+      "success": true,
+      "duration": 8.182941675186157,
+      "error": null,
+      "details": {
+        "ports_checked": [
+          8001,
+          8002,
+          8003,
+          3000
+        ]
+      },
+      "timestamp": "2025-07-04T05:00:15.221042"
+    },
+    {
+      "test_name": "Service Startup",
+      "success": true,
+      "duration": 0.0005013942718505859,
+      "error": null,
+      "details": {
+        "services_checked": [
+          "api_bridge.py",
+          "linkedin_browser_mcp.py",
+          "llm_controller.py"
+        ]
+      },
+      "timestamp": "2025-07-04T05:00:15.221544"
+    },
+    {
+      "test_name": "Configuration Loading",
+      "success": true,
+      "duration": 0.012004852294921875,
+      "error": null,
+      "details": {
+        "env_created": true
+      },
+      "timestamp": "2025-07-04T05:00:15.233548"
+    },
+    {
+      "test_name": "Data Validation",
+      "success": false,
+      "duration": 0.004494667053222656,
+      "error": "",
+      "details": {},
+      "timestamp": "2025-07-04T05:00:15.238543"
+    },
+    {
+      "test_name": "Error Handling",
+      "success": true,
+      "duration": 0.001003265380859375,
+      "error": null,
+      "details": {},
+      "timestamp": "2025-07-04T05:00:15.240046"
+    },
+    {
+      "test_name": "Utilities",
+      "success": true,
+      "duration": 0.2010049819946289,
+      "error": null,
+      "details": {},
+      "timestamp": "2025-07-04T05:00:15.441547"
+    },
+    {
+      "test_name": "Database Integration",
+      "success": true,
+      "duration": 0.9070017337799072,
+      "error": null,
+      "details": {
+        "note": "Database module not available"
+      },
+      "timestamp": "2025-07-04T05:00:16.349044"
+    },
+    {
+      "test_name": "MCP Integration",
+      "success": true,
+      "duration": 0.003000974655151367,
+      "error": null,
+      "details": {},
+      "timestamp": "2025-07-04T05:00:16.352545"
+    },
+    {
+      "test_name": "API Bridge Integration",
+      "success": true,
+      "duration": 0.0,
+      "error": null,
+      "details": {},
+      "timestamp": "2025-07-04T05:00:16.352545"
+    },
+    {
+      "test_name": "Auth Endpoints",
+      "success": true,
+      "duration": 0.0,
+      "error": null,
+      "details": {},
+      "timestamp": "2025-07-04T05:00:16.353044"
+    },
+    {
+      "test_name": "Job Search Endpoints",
+      "success": true,
+      "duration": 0.0,
+      "error": null,
+      "details": {},
+      "timestamp": "2025-07-04T05:00:16.353044"
+    },
+    {
+      "test_name": "Application Endpoints",
+      "success": true,
+      "duration": 0.0,
+      "error": null,
+      "details": {},
+      "timestamp": "2025-07-04T05:00:16.353044"
+    },
+    {
+      "test_name": "Automation Endpoints",
+      "success": true,
+      "duration": 0.0,
+      "error": null,
+      "details": {},
+      "timestamp": "2025-07-04T05:00:16.353543"
+    },
+    {
+      "test_name": "Authentication",
+      "success": true,
+      "duration": 0.0005056858062744141,
+      "error": null,
+      "details": {},
+      "timestamp": "2025-07-04T05:00:16.354049"
+    },
+    {
+      "test_name": "Authorization",
+      "success": true,
+      "duration": 0.0,
+      "error": null,
+      "details": {},
+      "timestamp": "2025-07-04T05:00:16.354049"
+    },
+    {
+      "test_name": "Input Validation",
+      "success": true,
+      "duration": 0.0,
+      "error": null,
+      "details": {},
+      "timestamp": "2025-07-04T05:00:16.354049"
+    },
+    {
+      "test_name": "Rate Limiting",
+      "success": true,
+      "duration": 0.0,
+      "error": null,
+      "details": {},
+      "timestamp": "2025-07-04T05:00:16.354543"
+    },
+    {
+      "test_name": "Response Times",
+      "success": true,
+      "duration": 0.0,
+      "error": null,
+      "details": {},
+      "timestamp": "2025-07-04T05:00:16.354543"
+    },
+    {
+      "test_name": "Concurrent Requests",
+      "success": true,
+      "duration": 0.0,
+      "error": null,
+      "details": {},
+      "timestamp": "2025-07-04T05:00:16.354543"
+    },
+    {
+      "test_name": "Memory Usage",
+      "success": true,
+      "duration": 0.0,
+      "error": null,
+      "details": {},
+      "timestamp": "2025-07-04T05:00:16.355043"
+    },
+    {
+      "test_name": "User Journey",
+      "success": true,
+      "duration": 0.0,
+      "error": null,
+      "details": {},
+      "timestamp": "2025-07-04T05:00:16.355043"
+    },
+    {
+      "test_name": "Automation Workflow",
+      "success": true,
+      "duration": 0.0,
+      "error": null,
+      "details": {},
+      "timestamp": "2025-07-04T05:00:16.355544"
+    }
+  ]
+}

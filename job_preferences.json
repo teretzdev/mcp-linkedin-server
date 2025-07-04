@@ -1,0 +1,23 @@
+{
+  "keywords": [
+    "python developer",
+    "software engineer"
+  ],
+  "location": "Remote",
+  "experience_level": "mid-level",
+  "job_type": "full-time",
+  "salary_min": null,
+  "salary_max": null,
+  "remote_preference": true,
+  "companies_to_avoid": [],
+  "companies_to_target": [],
+  "skills_required": [
+    "Python",
+    "Django"
+  ],
+  "skills_preferred": [
+    "React",
+    "AWS"
+  ],
+  "selected_resume": "resume1.pdf"
+}
