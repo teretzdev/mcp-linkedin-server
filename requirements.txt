@@ -7,4 +7,6 @@ asyncio>=3.4.3
 httpx>=0.24.0
 fastapi>=0.100.0
 uvicorn>=0.23.0
-aiohttp 
+aiohttp
+pytest>=7.0.0
+pytest-asyncio>=0.20.0 

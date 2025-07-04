@@ -289,7 +289,28 @@ async def login_linkedin(username: str | None = None, password: str | None = Non
     Username and password are optional - if not provided, user will need to enter them manually."""
     
     logger.info("Starting LinkedIn login with browser for manual login")
-    
+
+    # Auto-login when both credentials are provided
+    if username and password:
+        logger.info("Auto-login with provided credentials")
+        async with BrowserSession(platform='linkedin') as session:
+            page = await session.new_page()
+            await page.goto('https://www.linkedin.com/login', wait_until='networkidle')
+            # Pre-fill and submit credentials
+            await page.fill('#username', username)
+            await page.fill('#password', password)
+            await page.click('button[type="submit"]')
+            try:
+                await page.wait_for_url('**/feed/**', timeout=60000)
+                if ctx:
+                    ctx.info("Login successful")
+                logger.info("Auto login successful")
+                await session.save_session(page)
+                return {"status": "success", "message": "Login successful"}
+            except Exception as e:
+                logger.error(f"Auto login failed: {str(e)}")
+                return {"status": "error", "message": "Login failed with provided credentials"}
+
     # Create browser session with explicit window size and position
     async with BrowserSession(platform='linkedin', headless=False) as session:
         try:
@@ -355,8 +376,17 @@ async def login_linkedin_secure(ctx: Context | None = None) -> dict:
     logger.info("Starting secure LinkedIn login")
     username = os.getenv('LINKEDIN_USERNAME', '').strip()
     password = os.getenv('LINKEDIN_PASSWORD', '').strip()
-    
-    # We'll pass the credentials to pre-fill them, but user can still modify them
+
+    # Validate credentials
+    if not username or not password:
+        return {"status": "error", "message": "Missing LinkedIn credentials"}
+    import re
+    if not re.match(r"[^@]+@[^@]+\.[^@]+", username):
+        return {"status": "error", "message": "Invalid email format"}
+    if len(password) < 8:
+        return {"status": "error", "message": "password must be at least 8 characters"}
+
+    # Proceed with secure login
     return await login_linkedin(username if username else None, password if password else None, ctx)
 
 @mcp.tool()
