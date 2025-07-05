@@ -1,4 +1,4 @@
-THIS SHOULD BE A LINTER ERRORfrom fastmcp import FastMCP, Context
+from fastmcp import FastMCP, Context
 from playwright.async_api import async_playwright
 import asyncio
 import os
@@ -1131,6 +1131,20 @@ async def get_application_analytics(ctx: Context) -> dict:
             "status": "error",
             "message": f"Failed to get analytics: {str(e)}"
         }
+
+@mcp.raw_route("get", "/health")
+async def health_check(request):
+    """Health check endpoint for the MCP server"""
+    from fastapi.responses import JSONResponse
+    logger.info("Health check endpoint called")
+    return JSONResponse(
+        status_code=200,
+        content={
+            "status": "healthy",
+            "server": "LinkedIn Browser MCP",
+            "timestamp": datetime.now().isoformat()
+        }
+    )
 
 if __name__ == "__main__":
     try:
