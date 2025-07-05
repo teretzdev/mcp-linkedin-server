@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+THIS SHOULD BE A LINTER ERROR#!/usr/bin/env python3
 """
 Automated Startup Script for LinkedIn Job Hunter
 Handles all manual intervention scenarios automatically

@@ -282,13 +282,6 @@ async def main():
         app = web.Application()
         app.router.add_get("/health", health_check)
 
-        # You can add more routes here to trigger controller actions, for example:
-        # async def run_automation_handler(request):
-        #     goals = ["Find relevant job opportunities"]
-        #     result = await controller.run_automation_session(goals)
-        #     return web.json_response(result)
-        # app.router.add_post("/api/run_automation", run_automation_handler)
-
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, '0.0.0.0', 8003)
