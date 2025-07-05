@@ -36,8 +36,8 @@ google-generativeai
 langchain
 
 # Data Processing
-# pandas==2.1.4
-# numpy==1.25.2
+pandas
+numpy
 
 # Testing
 pytest
