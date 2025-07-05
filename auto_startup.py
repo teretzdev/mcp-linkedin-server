@@ -1,4 +1,4 @@
-THIS SHOULD BE A LINTER ERROR#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Automated Startup Script for LinkedIn Job Hunter
 Handles all manual intervention scenarios automatically
@@ -225,9 +225,6 @@ class AutoStartup:
                 return process
             else:
                 logger.error("React frontend failed to start")
-                stdout, stderr = process.communicate()
-                logger.error(f"STDOUT: {stdout}")
-                logger.error(f"STDERR: {stderr}")
                 process.terminate()
                 return None
                 
@@ -238,12 +235,6 @@ class AutoStartup:
     def open_browser(self, url: str):
         """Open browser with the application"""
         logger.info(f"Dashboard is available at: {url}")
-        # try:
-        #     import webbrowser
-        #     webbrowser.open(url)
-        #     logger.info(f"Opened browser to {url}")
-        # except Exception as e:
-        #     logger.error(f"Error opening browser: {e}")
     
     def cleanup_on_exit(self):
         """Cleanup function to terminate all processes"""

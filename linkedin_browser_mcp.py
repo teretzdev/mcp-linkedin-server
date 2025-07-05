@@ -955,6 +955,20 @@ async def list_saved_jobs(ctx: Context) -> dict:
             "saved_jobs": []
         }
 
+@mcp.raw_route("get", "/health")
+async def health_check(request):
+    """Health check endpoint for the MCP server"""
+    from fastapi.responses import JSONResponse
+    logger.info("Health check endpoint called")
+    return JSONResponse(
+        status_code=200,
+        content={
+            "status": "healthy",
+            "server": "LinkedIn Browser MCP",
+            "timestamp": datetime.now().isoformat()
+        }
+    )
+
 @mcp.tool()
 async def update_application_status(job_id: str, ctx: Context, status: str = None, notes: str = None, follow_up_date: str = None) -> dict:
     """Update application status and details"""
