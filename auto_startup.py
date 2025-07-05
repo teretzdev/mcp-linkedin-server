@@ -64,21 +64,19 @@ class AutoStartup:
         raise RuntimeError(f"Could not find available port starting from {start_port}")
     
     def kill_process_on_port(self, port: int) -> bool:
-        """Kill any process using the specified port - Windows compatible"""
+        """Kill any process using the specified port - cross-platform."""
         try:
-            for proc in psutil.process_iter(['pid', 'name']):
-                try:
-                    # Windows-compatible way to get connections
-                    if hasattr(proc, 'connections'):
-                        connections = proc.connections()
-                        for conn in connections:
-                            if hasattr(conn, 'laddr') and hasattr(conn.laddr, 'port') and conn.laddr.port == port:
-                                logger.info(f"Killing process {proc.info['pid']} on port {port}")
-                                proc.terminate()
-                                proc.wait(timeout=5)
-                                return True
-                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired, AttributeError):
-                    continue
+            for conn in psutil.net_connections(kind='inet'):
+                if conn.laddr.port == port and conn.status == psutil.CONN_LISTEN:
+                    try:
+                        proc = psutil.Process(conn.pid)
+                        logger.info(f"Killing process {proc.pid} ({proc.name()}) on port {port}")
+                        proc.terminate()
+                        proc.wait(timeout=5)
+                        return True
+                    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired) as e:
+                        logger.warning(f"Failed to kill process {conn.pid} on port {port}: {e}")
+                        continue
             return False
         except Exception as e:
             logger.error(f"Error killing process on port {port}: {e}")
@@ -236,12 +234,7 @@ class AutoStartup:
     
     def open_browser(self, url: str):
         """Open browser with the application"""
-        try:
-            import webbrowser
-            webbrowser.open(url)
-            logger.info(f"Opened browser to {url}")
-        except Exception as e:
-            logger.error(f"Error opening browser: {e}")
+        logger.info(f"Dashboard is available at: {url}")
     
     def cleanup_on_exit(self):
         """Cleanup function to terminate all processes"""

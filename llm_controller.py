@@ -13,6 +13,7 @@ from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
 from dotenv import load_dotenv
 import aiohttp
+from aiohttp import web
 
 # Load environment variables
 load_dotenv()
@@ -260,29 +261,36 @@ class LLMController:
         
         logger.info("LLM Controller shutdown complete")
 
+async def health_check(request):
+    """Health check endpoint for the LLM Controller"""
+    return web.json_response({
+        "status": "healthy",
+        "server": "LLM Controller",
+        "timestamp": datetime.now().isoformat()
+    })
+
 # Example usage
 async def main():
-    """Example usage of the LLM Controller"""
+    """Main entry point for the LLM Controller service"""
     controller = LLMController()
     
     try:
         # Initialize
         if not await controller.initialize():
-            logger.error("Failed to initialize controller")
-            return
+            logger.error("Failed to initialize controller, but starting server anyway.")
+
+        app = web.Application()
+        app.router.add_get("/health", health_check)
+
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, '0.0.0.0', 8003)
+        await site.start()
         
-        # Run automation session
-        goals = [
-            "Find relevant job opportunities",
-            "Apply to suitable positions"
-        ]
+        logger.info("LLM Controller server started on http://0.0.0.0:8003")
         
-        result = await controller.run_automation_session(goals)
-        print("Session completed:", json.dumps(result, indent=2, default=str))
-        
-        # Get recommendations
-        recommendations = await controller.get_recommendations()
-        print("Recommendations:", json.dumps(recommendations, indent=2, default=str))
+        # Keep the server running
+        await asyncio.Event().wait()
         
     except Exception as e:
         logger.error(f"Error in main: {e}")
@@ -291,4 +299,7 @@ async def main():
         await controller.shutdown()
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("LLM Controller stopped by user.") 
