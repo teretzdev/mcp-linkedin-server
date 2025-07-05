@@ -27,23 +27,30 @@ const Sidebar = ({ isLoggedIn, serverStatus, onLogin, onLogout, currentUser }) =
   const location = useLocation();
 
   const navigationItems = [
+    // Core
+    { section: 'Core' },
     { path: '/dashboard', icon: Home, label: 'Dashboard' },
     { path: '/job-search', icon: Search, label: 'Job Search' },
-    { path: '/resume-manager', icon: FileText, label: 'Resume Manager' },
-    { path: '/easy-apply', icon: MessageSquare, label: 'Easy Apply Assistant' },
-    { path: '/applicant-knowledge', icon: Brain, label: 'Knowledge Base' },
     { path: '/applications', icon: Briefcase, label: 'Applications' },
-    { path: '/follow-ups', icon: Bell, label: 'Follow-ups' },
-    { path: '/analytics', icon: BarChart3, label: 'Analytics' },
     { path: '/saved-jobs', icon: Bookmark, label: 'Saved Jobs' },
-    { path: '/automation', icon: Zap, label: 'Automation' },
+    // AI & Automation
+    { section: 'AI & Automation' },
+    { path: '/easy-apply', icon: MessageSquare, label: 'Easy Apply Assistant' },
+    { path: '/resume-manager', icon: FileText, label: 'Resume Manager' },
     { path: '/ai-automation', icon: Bot, label: 'AI Automation' },
+    { path: '/automation', icon: Zap, label: 'Automation' },
+    // Insights
+    { section: 'Insights' },
+    { path: '/analytics', icon: BarChart3, label: 'Analytics' },
+    { path: '/applicant-knowledge', icon: Brain, label: 'Knowledge Base' },
+    { path: '/follow-ups', icon: Bell, label: 'Follow-ups' },
+    // Settings
+    { section: 'Settings' },
     { path: '/settings', icon: Settings, label: 'Settings' }
   ];
 
-  const filteredNavigation = navigationItems.filter(item => 
-    !item.requiresAuth || (item.requiresAuth && isLoggedIn)
-  );
+  // Only filter items with a path (skip section dividers)
+  const filteredNavigation = navigationItems.filter(item => !item.path || !item.requiresAuth || (item.requiresAuth && isLoggedIn));
 
   const isActive = (path) => location.pathname === path;
 
@@ -76,7 +83,14 @@ const Sidebar = ({ isLoggedIn, serverStatus, onLogin, onLogout, currentUser }) =
 
       {/* Navigation */}
       <nav className="flex-1 px-4 py-6 space-y-2">
-        {filteredNavigation.map((item) => {
+        {filteredNavigation.map((item, idx) => {
+          if (item.section) {
+            return (
+              <div key={item.section + idx} className="mt-4 mb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                {item.section}
+              </div>
+            );
+          }
           const Icon = item.icon;
           return (
             <Link

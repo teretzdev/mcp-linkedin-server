@@ -192,35 +192,6 @@ async def list_saved_jobs():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/get_credentials")
-async def get_credentials():
-    """Get current LinkedIn credentials (username only, password masked)"""
-    import os
-    from dotenv import load_dotenv
-    import pathlib
-    try:
-        cwd = os.getcwd()
-        env_path = os.path.abspath('.env')
-        print(f"[DEBUG] Current working directory: {cwd}")
-        print(f"[DEBUG] Looking for .env at: {env_path}")
-        if os.path.exists(env_path):
-            with open(env_path, 'r', encoding='utf-8') as f:
-                env_contents = f.read()
-            print(f"[DEBUG] .env contents:\n{env_contents}")
-        else:
-            print("[DEBUG] .env file does NOT exist!")
-        load_dotenv(dotenv_path=env_path, override=True)
-        username = os.getenv('LINKEDIN_USERNAME', '')
-        password = os.getenv('LINKEDIN_PASSWORD', '')
-        print(f"[DEBUG] Loaded credentials: username='{username}', password length={len(password)}")
-        return {
-            "username": username,
-            "configured": bool(username)
-        }
-    except Exception as e:
-        print(f"[DEBUG] Exception in get_credentials: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.post("/api/update_credentials")
 async def update_credentials(request: CredentialRequest):
     """Update LinkedIn credentials in .env file"""
@@ -403,25 +374,6 @@ async def update_ai_preferences(request: dict = Body(...)):
         automation = get_automation_instance()
         automation.update_preferences(**request)
         return {"status": "updated", "preferences": automation.preferences}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/ai_automation/upload_resume")
-async def upload_resume(request: dict = Body(...)):
-    """Upload a resume file"""
-    try:
-        automation = get_automation_instance()
-        file_path = request.get("file_path")
-        resume_name = request.get("resume_name")
-        
-        if not file_path or not resume_name:
-            raise HTTPException(status_code=400, detail="file_path and resume_name are required")
-        
-        success = automation.resume_manager.upload_resume(file_path, resume_name)
-        if success:
-            return {"status": "uploaded", "resume_name": resume_name}
-        else:
-            raise HTTPException(status_code=400, detail="Failed to upload resume")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

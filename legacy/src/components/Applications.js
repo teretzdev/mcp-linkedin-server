@@ -1,4 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import ApplicationsFilters from './ApplicationsFilters';
+import ApplicationsList from './ApplicationsList';
+import ApplicationsAnalytics from './ApplicationsAnalytics';
+import ApplicationsNotes from './ApplicationsNotes';
+import { filterApplications, sortApplications, getApplicationsAnalytics, exportApplicationsCSV } from './ApplicationsUtils';
 import { 
   Loader2, 
   Filter, 
@@ -74,36 +79,9 @@ const Applications = () => {
     fetchAppliedJobs();
   }, []);
 
-  // Filter and sort jobs
   useEffect(() => {
-    let filtered = jobs.filter(job => {
-      const matchesSearch = 
-        job.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        job.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        job.location?.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesStatus = statusFilter === 'all' || job.status === statusFilter;
-      
-      return matchesSearch && matchesStatus;
-    });
-
-    // Sort jobs
-    filtered.sort((a, b) => {
-      let aValue = a[sortBy];
-      let bValue = b[sortBy];
-      
-      if (sortBy === 'date_applied') {
-        aValue = new Date(aValue);
-        bValue = new Date(bValue);
-      }
-      
-      if (sortOrder === 'asc') {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
-    });
-
+    let filtered = filterApplications(jobs, searchTerm, statusFilter);
+    filtered = sortApplications(filtered, sortBy, sortOrder);
     setFilteredJobs(filtered);
   }, [jobs, searchTerm, statusFilter, sortBy, sortOrder]);
 
@@ -145,47 +123,7 @@ const Applications = () => {
     }
   };
 
-  const exportApplications = () => {
-    const csvContent = [
-      ['Title', 'Company', 'Location', 'Status', 'Date Applied', 'Notes'],
-      ...filteredJobs.map(job => [
-        job.title || '',
-        job.company || '',
-        job.location || '',
-        statusConfig[job.status]?.label || 'Applied',
-        job.date_applied || '',
-        (job.notes || []).map(note => note.text).join('; ')
-      ])
-    ].map(row => row.map(field => `"${field}"`).join(',')).join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `applications-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
-
-  const getAnalytics = () => {
-    const total = jobs.length;
-    const statusCounts = {};
-    const monthlyCounts = {};
-    
-    jobs.forEach(job => {
-      // Count by status
-      statusCounts[job.status] = (statusCounts[job.status] || 0) + 1;
-      
-      // Count by month
-      const date = new Date(job.date_applied);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      monthlyCounts[monthKey] = (monthlyCounts[monthKey] || 0) + 1;
-    });
-
-    return { total, statusCounts, monthlyCounts };
-  };
-
-  const analytics = getAnalytics();
+  const analytics = getApplicationsAnalytics(jobs);
 
   if (loading) {
     return (
@@ -222,7 +160,7 @@ const Applications = () => {
               Analytics
             </button>
             <button
-              onClick={exportApplications}
+              onClick={exportApplicationsCSV(filteredJobs)}
               className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
             >
               <Download className="w-4 h-4 mr-2" />
@@ -252,196 +190,38 @@ const Applications = () => {
       )}
 
       {/* Filters and Search */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Search jobs, companies, or locations..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-linkedin-500 focus:border-transparent"
-              />
-            </div>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              <Filter className="w-4 h-4 mr-2" />
-              Filters
-              {showFilters ? <ChevronUp className="w-4 h-4 ml-2" /> : <ChevronDown className="w-4 h-4 ml-2" />}
-            </button>
-          </div>
-          <p className="text-sm text-gray-600">{filteredJobs.length} applications</p>
-        </div>
-
-        {showFilters && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-linkedin-500 focus:border-transparent"
-              >
-                <option value="all">All Statuses</option>
-                {Object.entries(statusConfig).map(([key, config]) => (
-                  <option key={key} value={key}>{config.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-linkedin-500 focus:border-transparent"
-              >
-                <option value="date_applied">Date Applied</option>
-                <option value="title">Job Title</option>
-                <option value="company">Company</option>
-                <option value="status">Status</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Order</label>
-              <select
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-linkedin-500 focus:border-transparent"
-              >
-                <option value="desc">Newest First</option>
-                <option value="asc">Oldest First</option>
-              </select>
-            </div>
-          </div>
-        )}
-      </div>
+      <ApplicationsFilters
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        sortBy={sortBy}
+        setSortBy={setSortBy}
+        sortOrder={sortOrder}
+        setSortOrder={setSortOrder}
+        showFilters={showFilters}
+        setShowFilters={setShowFilters}
+      />
 
       {/* Applications List */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        {filteredJobs.length === 0 ? (
-          <div className="text-center py-8">
-            <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500">No applications found matching your criteria.</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {filteredJobs.map((job, idx) => {
-              const StatusIcon = statusConfig[job.status]?.icon || CheckCircle;
-              return (
-                <div key={idx} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <h3 className="font-medium text-gray-900">{job.title || 'Job Title'}</h3>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusConfig[job.status]?.color}`}>
-                          <StatusIcon className="w-3 h-3 inline mr-1" />
-                          {statusConfig[job.status]?.label}
-                        </span>
-                      </div>
-                      
-                      <div className="flex items-center space-x-4 text-sm text-gray-600 mb-2">
-                        <div className="flex items-center">
-                          <Building className="w-4 h-4 mr-1" />
-                          {job.company || 'Company'}
-                        </div>
-                        <div className="flex items-center">
-                          <MapPin className="w-4 h-4 mr-1" />
-                          {job.location || 'Location'}
-                        </div>
-                        <div className="flex items-center">
-                          <Calendar className="w-4 h-4 mr-1" />
-                          {job.date_applied ? new Date(job.date_applied).toLocaleDateString() : 'Date'}
-                        </div>
-                      </div>
-
-                      {/* Notes Preview */}
-                      {job.notes && job.notes.length > 0 && (
-                        <div className="mt-2">
-                          <p className="text-xs text-gray-500 mb-1">Latest Note:</p>
-                          <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded">
-                            {job.notes[job.notes.length - 1].text}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex items-center space-x-2 ml-4">
-                      <select
-                        value={job.status}
-                        onChange={(e) => updateJobStatus(job.id || idx, e.target.value)}
-                        className="text-xs border border-gray-300 rounded px-2 py-1"
-                      >
-                        {Object.entries(statusConfig).map(([key, config]) => (
-                          <option key={key} value={key}>{config.label}</option>
-                        ))}
-                      </select>
-                      
-                      <button
-                        onClick={() => {
-                          setSelectedJob(job);
-                          setShowAddNote(true);
-                        }}
-                        className="p-2 text-gray-600 hover:text-linkedin-600 hover:bg-gray-100 rounded"
-                        title="Add Note"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
-                      
-                      <a
-                        href={job.jobUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2 text-gray-600 hover:text-linkedin-600 hover:bg-gray-100 rounded"
-                        title="View Job"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      <ApplicationsList
+        jobs={filteredJobs}
+        updateJobStatus={updateJobStatus}
+        setSelectedJob={setSelectedJob}
+        setShowAddNote={setShowAddNote}
+        setShowAnalytics={setShowAnalytics}
+      />
 
       {/* Add Note Modal */}
       {showAddNote && selectedJob && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Add Note for {selectedJob.title}
-            </h3>
-            <textarea
-              value={newNote}
-              onChange={(e) => setNewNote(e.target.value)}
-              placeholder="Add a note about this application..."
-              className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-linkedin-500 focus:border-transparent resize-none"
-            />
-            <div className="flex justify-end space-x-2 mt-4">
-              <button
-                onClick={() => {
-                  setShowAddNote(false);
-                  setSelectedJob(null);
-                  setNewNote('');
-                }}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => addNote(selectedJob.id || 0)}
-                className="px-4 py-2 bg-linkedin-600 text-white rounded-lg hover:bg-linkedin-700"
-              >
-                Add Note
-              </button>
-            </div>
-          </div>
-        </div>
+        <ApplicationsNotes
+          job={selectedJob}
+          newNote={newNote}
+          setNewNote={setNewNote}
+          addNote={addNote}
+          showAddNote={showAddNote}
+          setShowAddNote={setShowAddNote}
+        />
       )}
     </div>
   );

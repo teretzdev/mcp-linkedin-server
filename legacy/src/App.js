@@ -37,11 +37,17 @@ import ApplicationAnalytics from './components/ApplicationAnalytics';
 import AIAutomationDashboard from './components/AIAutomationDashboard';
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    const savedUser = localStorage.getItem('currentUser');
+    return !!savedUser;
+  });
   const [serverStatus, setServerStatus] = useState('disconnected');
   const [loading, setLoading] = useState(true);
   const [apiPort, setApiPort] = useState(8001);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    const savedUser = localStorage.getItem('currentUser');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
   const [showGeminiModal, setShowGeminiModal] = useState(false);
   const [geminiKey, setGeminiKey] = useState(localStorage.getItem('gemini_api_key') || '');
   const [pendingGeminiKey, setPendingGeminiKey] = useState('');
@@ -124,11 +130,13 @@ function App() {
   const handleLogin = (userData) => {
     setIsLoggedIn(true);
     setCurrentUser(userData);
+    localStorage.setItem('currentUser', JSON.stringify(userData));
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
     setCurrentUser(null);
+    localStorage.removeItem('currentUser');
   };
 
   // Handler to open Gemini modal from child components

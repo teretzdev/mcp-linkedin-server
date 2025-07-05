@@ -112,4 +112,16 @@ echo.
 echo Press any key to exit this window...
 pause >nul
 
+REM Kill any process using port 8001
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8001 ^| findstr LISTENING') do (
+    echo Killing process on port 8001 with PID %%a
+    taskkill /PID %%a /F
+)
+REM Start the backend server in a new window
+start "Backend" cmd /c "python api_bridge_with_database.py"
+REM Wait for backend to be ready
+ping 127.0.0.1 -n 10 > nul
+REM Run the test suite
+pytest --maxfail=10 --disable-warnings -v
+
 endlocal 

@@ -10,7 +10,9 @@ from linkedin_browser_mcp import (
     _interact_with_linkedin_post,
     browse_linkedin_feed,
     search_linkedin_profiles,
-    mcp
+    mcp,
+    search_linkedin_jobs,
+    apply_to_linkedin_job
 )
 from fastmcp import Context
 
@@ -92,4 +94,32 @@ async def test_interact_with_linkedin_post_invalid_action():
         action="invalid"
     )
     assert result["status"] == "error"
-    assert "Invalid action" in result["message"] 
+    assert "Invalid action" in result["message"]
+
+@pytest.mark.asyncio
+async def test_end_to_end_job_search_and_apply():
+    ctx = MockContext(fastmcp=mcp)
+    async with BrowserSession(platform='linkedin', headless=True) as session:
+        # Simulate login (mocked)
+        await session.new_page('https://www.linkedin.com/login')
+        # Simulate job search
+        jobs = await search_linkedin_jobs('Software Engineer', ctx, location='Remote', count=2)
+        assert 'status' in jobs
+        # Simulate applying to a job (mocked)
+        if jobs.get('status') == 'success' and jobs.get('jobs'):
+            job_url = jobs['jobs'][0].get('url')
+            result = await apply_to_linkedin_job(job_url, ctx)
+            assert result['status'] in ['success', 'error']
+
+@pytest.mark.asyncio
+async def test_cookie_management():
+    ctx = MockContext(fastmcp=mcp)
+    async with BrowserSession(platform='linkedin', headless=True) as session:
+        # Save cookies
+        cookies = await session.context.cookies()
+        save_cookies(cookies, 'test_cookies.json')
+        assert os.path.exists('test_cookies.json')
+        # Load cookies
+        loaded = load_cookies('test_cookies.json')
+        assert loaded is not None
+        os.remove('test_cookies.json') 

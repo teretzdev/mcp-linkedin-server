@@ -125,6 +125,113 @@ async def test_ai_automation():
     else:
         print("\n6. Gemini not available - skipping AI analysis test")
     
+    # Test 7: Edge case - job scoring with missing fields
+    print("\n7. Testing job scoring with missing fields...")
+    try:
+        incomplete_job = {"title": "", "company": "", "location": "", "descriptionSnippet": ""}
+        match = automation.score_job(incomplete_job)
+        print(f"✅ Edge case handled - Match Score: {match.match_score:.2f}, Should Apply: {match.should_apply}")
+    except Exception as e:
+        print(f"❌ Edge case job scoring failed: {e}")
+
+    # Test 8: LLM integration failure (simulate missing API key)
+    print("\n8. Testing LLM integration failure...")
+    try:
+        automation.gemini_model = None  # Simulate missing Gemini
+        analysis = await automation.analyze_job_with_gemini({"title": "Test"}, automation.preferences)
+        if analysis is None:
+            print("✅ LLM integration failure handled gracefully")
+        else:
+            print("⚠️  LLM integration did not fail as expected")
+    except Exception as e:
+        print(f"✅ LLM integration failure raised exception as expected: {e}")
+
+    # Test 9: Negative resume upload (nonexistent file)
+    print("\n9. Testing negative resume upload...")
+    try:
+        resume_manager = automation.resume_manager
+        success = resume_manager.upload_resume("nonexistent_file.pdf", "bad_resume")
+        if not success:
+            print("✅ Negative resume upload handled correctly")
+        else:
+            print("❌ Negative resume upload should have failed")
+    except Exception as e:
+        print(f"✅ Negative resume upload raised exception as expected: {e}")
+    
+    # Test 10: Upload, list, and delete resumes
+    print("\n10. Testing upload, list, and delete resumes...")
+    try:
+        resume_manager = automation.resume_manager
+        # Clean up any existing test resumes
+        for r in resume_manager.list_resumes():
+            resume_manager.delete_resume(r['name'])
+        # Create a dummy resume file
+        test_resume_path = "test_resume_upload.pdf"
+        with open(test_resume_path, "wb") as f:
+            f.write(b"Dummy PDF content")
+        # Upload resumes up to max
+        for i in range(resume_manager.max_resumes):
+            success = resume_manager.upload_resume(test_resume_path, f"test_resume_{i}")
+            assert success, f"Failed to upload resume {i}"
+        # Try to upload one more (should fail)
+        success = resume_manager.upload_resume(test_resume_path, "overflow_resume")
+        assert not success, "Should not allow more than max resumes"
+        # List resumes
+        resumes = resume_manager.list_resumes()
+        assert len(resumes) == resume_manager.max_resumes, "Resume count mismatch"
+        # Delete a resume
+        del_success = resume_manager.delete_resume(resumes[0]['name'])
+        assert del_success, "Failed to delete resume"
+        # Try to delete again (should fail)
+        del_again = resume_manager.delete_resume(resumes[0]['name'])
+        assert not del_again, "Should not delete nonexistent resume"
+        # Clean up
+        for r in resume_manager.list_resumes():
+            resume_manager.delete_resume(r['name'])
+        os.remove(test_resume_path)
+        print("✅ Upload, list, and delete resumes tested successfully")
+    except Exception as e:
+        print(f"❌ Resume upload/list/delete test failed: {e}")
+
+    # Test 11: Duplicate resume name
+    print("\n11. Testing duplicate resume name...")
+    try:
+        resume_manager = automation.resume_manager
+        test_resume_path = "test_resume_upload.pdf"
+        with open(test_resume_path, "wb") as f:
+            f.write(b"Dummy PDF content")
+        resume_manager.upload_resume(test_resume_path, "dup_resume")
+        # Try to upload again with same name (should overwrite or fail gracefully)
+        result = resume_manager.upload_resume(test_resume_path, "dup_resume")
+        assert result, "Duplicate upload should succeed (overwrite allowed)"
+        resume_manager.delete_resume("dup_resume")
+        os.remove(test_resume_path)
+        print("✅ Duplicate resume name handled correctly")
+    except Exception as e:
+        print(f"❌ Duplicate resume name test failed: {e}")
+
+    # Test 12: Invalid file format
+    print("\n12. Testing invalid file format...")
+    try:
+        resume_manager = automation.resume_manager
+        test_resume_path = "test_resume_upload.txt"
+        with open(test_resume_path, "w") as f:
+            f.write("")  # Empty file
+        success = resume_manager.upload_resume(test_resume_path, "empty_resume")
+        assert not success, "Should not upload empty/invalid resume"
+        os.remove(test_resume_path)
+        print("✅ Invalid file format handled correctly")
+    except Exception as e:
+        print(f"❌ Invalid file format test failed: {e}")
+    
+    # Frontend (React) upload tests are recommended for ResumeManager.js:
+    # - Simulate file selection and upload (mock axios)
+    # - Test UI state changes (isUploading, error display)
+    # - Test resume list updates after upload
+    # - Test error handling for invalid/large/unsupported files
+    # - Test delete and select resume actions
+    # These can be implemented using Jest + React Testing Library.
+    
     print("\n" + "=" * 50)
     print("🎉 AI Automation System Test Complete!")
     print("\nNext steps:")

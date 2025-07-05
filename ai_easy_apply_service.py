@@ -9,7 +9,7 @@ import json
 import logging
 import asyncio
 from typing import Dict, List, Optional, Any
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 # Try to import Gemini
@@ -18,6 +18,13 @@ try:
     GEMINI_AVAILABLE = True
 except ImportError:
     GEMINI_AVAILABLE = False
+
+# Try to import OpenAI
+try:
+    import openai
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -30,16 +37,16 @@ class ApplicantProfile:
     email: str
     phone: str
     location: str
-    experience_years: int
-    skills: List[str]
     education: str
-    languages: List[str]
     work_authorization: str
     salary_expectation: str
     availability: str
+    experience_years: int = 0
+    skills: List[str] = field(default_factory=list)
+    languages: List[str] = field(default_factory=list)
     current_position: str = ""
-    target_roles: Optional[List[str]] = None
-    achievements: Optional[List[str]] = None
+    target_roles: List[str] = field(default_factory=list)
+    achievements: List[str] = field(default_factory=list)
 
 @dataclass
 class JobContext:
@@ -49,10 +56,10 @@ class JobContext:
     location: str
     salary_range: str
     description: str
-    requirements: List[str]
-    responsibilities: List[str]
     job_type: str
     remote: bool
+    requirements: List[str] = field(default_factory=list)
+    responsibilities: List[str] = field(default_factory=list)
 
 @dataclass
 class ApplicationQuestion:
@@ -68,28 +75,36 @@ class ApplicationQuestion:
 class AIEasyApplyService:
     """AI-powered Easy Apply answer generation service"""
     
-    def __init__(self, gemini_api_key: Optional[str] = None):
+    def __init__(self, gemini_api_key: Optional[str] = None, openai_api_key: Optional[str] = None, provider: Optional[str] = None):
         self.gemini_api_key = gemini_api_key or os.getenv('GEMINI_API_KEY')
+        self.openai_api_key = openai_api_key or os.getenv('OPENAI_API_KEY')
+        self.provider = provider or os.getenv('LLM_PROVIDER', 'gemini')
         self.gemini_model = None
-        self.setup_gemini()
+        self.openai_model = None
+        self.setup_llm()
         
-    def setup_gemini(self):
-        """Setup Gemini API connection"""
-        if not GEMINI_AVAILABLE:
-            logger.warning("Gemini not available. Install with: pip install google-generativeai")
-            return
-            
-        if not self.gemini_api_key:
-            logger.warning("GEMINI_API_KEY not found. AI features will be disabled.")
-            return
-            
-        try:
-            genai.configure(api_key=self.gemini_api_key)
-            self.gemini_model = genai.GenerativeModel('gemini-pro')
-            logger.info("Gemini API configured successfully")
-        except Exception as e:
-            logger.error(f"Failed to setup Gemini: {e}")
-            self.gemini_model = None
+    def setup_llm(self):
+        """Setup LLM provider (Gemini preferred, fallback to OpenAI)"""
+        if self.provider == 'gemini' and GEMINI_AVAILABLE and self.gemini_api_key:
+            try:
+                genai.configure(api_key=self.gemini_api_key)
+                self.gemini_model = genai.GenerativeModel('gemini-pro')
+                logger.info("Gemini API configured successfully")
+                return
+            except Exception as e:
+                logger.error(f"Failed to setup Gemini: {e}")
+                self.gemini_model = None
+        if self.provider == 'openai' or not self.gemini_model:
+            if OPENAI_AVAILABLE and self.openai_api_key:
+                try:
+                    openai.api_key = self.openai_api_key
+                    self.openai_model = 'gpt-3.5-turbo'
+                    logger.info("OpenAI API configured successfully")
+                except Exception as e:
+                    logger.error(f"Failed to setup OpenAI: {e}")
+                    self.openai_model = None
+            else:
+                logger.warning("OpenAI API key not found or openai package not available.")
     
     async def generate_answer(
         self, 
@@ -99,44 +114,64 @@ class AIEasyApplyService:
         previous_answers: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
         """Generate intelligent answer for application question"""
-        
-        if not self.gemini_model:
-            return {
-                "success": False,
-                "error": "Gemini API not available",
-                "fallback_answer": self._generate_fallback_answer(question, applicant_profile)
-            }
-        
-        try:
-            # Build context-aware prompt
-            prompt = self._build_prompt(question, applicant_profile, job_context, previous_answers)
-            
-            # Generate response
-            response = await asyncio.to_thread(
-                self.gemini_model.generate_content, prompt
-            )
-            
-            # Parse and validate response
-            answer = self._parse_ai_response(response.text, question)
-            
-            # Generate suggestions
-            suggestions = self._generate_suggestions(answer, question, job_context)
-            
-            return {
-                "success": True,
-                "answer": answer,
-                "suggestions": suggestions,
-                "confidence": self._calculate_confidence(answer, question),
-                "reasoning": self._extract_reasoning(response.text)
-            }
-            
-        except Exception as e:
-            logger.error(f"AI answer generation failed: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "fallback_answer": self._generate_fallback_answer(question, applicant_profile)
-            }
+        if self.gemini_model:
+            try:
+                prompt = self._build_prompt(question, applicant_profile, job_context, previous_answers)
+                response = await asyncio.to_thread(
+                    self.gemini_model.generate_content, prompt
+                )
+                answer = self._parse_ai_response(response.text, question)
+                suggestions = self._generate_suggestions(answer, question, job_context)
+                return {
+                    "success": True,
+                    "answer": answer,
+                    "suggestions": suggestions,
+                    "confidence": self._calculate_confidence(answer, question),
+                    "reasoning": self._extract_reasoning(response.text),
+                    "provider": "gemini"
+                }
+            except Exception as e:
+                logger.error(f"Gemini answer generation failed: {e}")
+        if self.openai_model:
+            try:
+                prompt = self._build_prompt(question, applicant_profile, job_context, previous_answers)
+                def call_openai():
+                    if hasattr(openai, 'ChatCompletion'):
+                        return openai.ChatCompletion.create(
+                            model=self.openai_model,
+                            messages=[{"role": "system", "content": "You are a helpful assistant."}, {"role": "user", "content": prompt}]
+                        )
+                    elif hasattr(openai, 'Completion'):
+                        return openai.Completion.create(
+                            engine=self.openai_model,
+                            prompt=prompt,
+                            max_tokens=512
+                        )
+                    else:
+                        raise RuntimeError("No OpenAI completion method available.")
+                response = await asyncio.to_thread(call_openai)
+                if hasattr(openai, 'ChatCompletion'):
+                    answer = response.choices[0].message['content']
+                elif hasattr(openai, 'Completion'):
+                    answer = response.choices[0].text
+                else:
+                    answer = ""
+                suggestions = self._generate_suggestions(answer, question, job_context)
+                return {
+                    "success": True,
+                    "answer": answer,
+                    "suggestions": suggestions,
+                    "confidence": self._calculate_confidence(answer, question),
+                    "reasoning": None,
+                    "provider": "openai"
+                }
+            except Exception as e:
+                logger.error(f"OpenAI answer generation failed: {e}")
+        return {
+            "success": False,
+            "error": "No LLM provider available",
+            "fallback_answer": self._generate_fallback_answer(question, applicant_profile)
+        }
     
     def _build_prompt(
         self, 
@@ -469,11 +504,11 @@ Provide a fit analysis with:
 # Global service instance
 _ai_service = None
 
-def get_ai_service(gemini_api_key: Optional[str] = None) -> AIEasyApplyService:
+def get_ai_service(gemini_api_key: Optional[str] = None, openai_api_key: Optional[str] = None, provider: Optional[str] = None) -> AIEasyApplyService:
     """Get or create AI service instance"""
     global _ai_service
     if _ai_service is None:
-        _ai_service = AIEasyApplyService(gemini_api_key)
+        _ai_service = AIEasyApplyService(gemini_api_key, openai_api_key, provider)
     return _ai_service
 
 # Example usage

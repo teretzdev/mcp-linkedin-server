@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "chroma": {
+      "command": "chroma-mcp-server",
+      "args": [],
+      "env": {
+        "CHROMA_CLIENT_TYPE": "persistent",
+        "CHROMA_DATA_DIR": "C:/Users/Shadow/mcp-linkedin-server/shared/chroma_data",
+        "CHROMA_LOG_DIR": "C:/Users/Shadow/mcp-linkedin-server/logs/chroma",
+        "LOG_LEVEL": "INFO",
+        "MCP_LOG_LEVEL": "INFO",
+        "MCP_SERVER_LOG_LEVEL": "INFO"
+      },
+      "description": "Chroma MCP Server for persistent, searchable working memory and codebase indexing."
+    },
+    "software-planning-tool": {
+      "command": "node",
+      "args": [
+        "C:/Users/Shadow/Software-planning-mcp/build/index.js"
+      ],
+      "disabled": false,
+      "autoApprove": [],
+      "description": "Software Planning Tool MCP server for development planning and task management."
+    }
+  }
+} 

@@ -12,8 +12,17 @@ from pathlib import Path
 # Add current directory to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from database.database import DatabaseManager
-from database.migrations import run_migrations, migrate_saved_jobs_from_json, create_backup_before_migration, validate_migration
+# Add legacy directory to path for database modules
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'legacy'))
+
+try:
+    from database.database import DatabaseManager
+    from database.migrations import run_migrations, migrate_saved_jobs_from_json, create_backup_before_migration, validate_migration
+    DATABASE_AVAILABLE = True
+except ImportError as e:
+    print(f"Database modules not available: {e}")
+    print("Database integration will be skipped.")
+    DATABASE_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(
@@ -24,6 +33,10 @@ logger = logging.getLogger(__name__)
 
 def initialize_database(db_path: str = "linkedin_jobs.db") -> DatabaseManager:
     """Initialize database and run migrations"""
+    if not DATABASE_AVAILABLE:
+        logger.warning("Database modules not available, skipping database initialization")
+        return None
+        
     try:
         logger.info("🚀 Initializing LinkedIn Job Hunter Database")
         logger.info("=" * 50)

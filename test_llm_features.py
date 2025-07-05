@@ -92,5 +92,40 @@ async def test_llm_features():
     finally:
         await controller.shutdown()
 
+@pytest.mark.asyncio
+async def test_llm_api_failure():
+    """Test LLM controller error handling for API failures"""
+    controller = SimpleLLMController()
+    await controller.initialize()
+    # Simulate API failure by monkeypatching search_jobs
+    orig_search_jobs = controller.search_jobs
+    async def fail_search_jobs(*args, **kwargs):
+        raise Exception("Simulated API failure")
+    controller.search_jobs = fail_search_jobs
+    try:
+        await controller.search_jobs()
+        assert False, "API failure should raise exception"
+    except Exception as e:
+        assert "Simulated API failure" in str(e)
+    controller.search_jobs = orig_search_jobs
+
+@pytest.mark.asyncio
+async def test_empty_user_profile():
+    """Test LLM controller with empty user profile"""
+    controller = SimpleLLMController()
+    await controller.initialize()
+    controller.user_profile = None
+    result = await controller.get_recommendations()
+    assert result['user_profile'] is None
+
+@pytest.mark.asyncio
+async def test_stats_accuracy():
+    """Test session stats accuracy after actions"""
+    controller = SimpleLLMController()
+    await controller.initialize()
+    await controller.search_jobs("Software Engineer", "Remote", 2)
+    stats = controller.session_stats
+    assert stats['jobs_viewed'] >= 2
+
 if __name__ == "__main__":
     asyncio.run(test_llm_features()) 

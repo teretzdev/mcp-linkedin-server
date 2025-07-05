@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Filter, MapPin, Building, Clock, DollarSign, Star, Bookmark, Send, Eye, X, TrendingUp, Users } from 'lucide-react';
 import axios from 'axios';
+import JobFilters from './JobFilters';
+import JobList from './JobList';
+import { filterJobs, sortJobs } from './JobSearchUtils';
 
 const JobSearch = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -115,7 +118,9 @@ const JobSearch = () => {
   }, []);
 
   useEffect(() => {
-    applyFilters();
+    let filtered = filterJobs(jobs, filters, searchQuery, location);
+    filtered = sortJobs(filtered, sortBy);
+    setFilteredJobs(filtered);
   }, [jobs, filters, searchQuery, location, sortBy]);
 
   // Get unique values for filters
@@ -129,87 +134,6 @@ const JobSearch = () => {
     jobs.forEach(job => job.skills.forEach(skill => skillSet.add(skill)));
     return Array.from(skillSet);
   }, [jobs]);
-
-  const applyFilters = () => {
-    let filtered = [...jobs];
-
-    // Search query filter
-    if (searchQuery) {
-      filtered = filtered.filter(job =>
-        job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        job.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        job.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        job.skills.some(skill => skill.toLowerCase().includes(searchQuery.toLowerCase()))
-      );
-    }
-
-    // Location filter
-    if (location) {
-      filtered = filtered.filter(job =>
-        job.location.toLowerCase().includes(location.toLowerCase())
-      );
-    }
-
-    // Experience level filter
-    if (filters.experienceLevel) {
-      filtered = filtered.filter(job => job.experience.includes(filters.experienceLevel));
-    }
-
-    // Job type filter
-    if (filters.jobType) {
-      filtered = filtered.filter(job => job.type === filters.jobType);
-    }
-
-    // Company filter
-    if (filters.company) {
-      filtered = filtered.filter(job => job.company === filters.company);
-    }
-
-    // Skills filter
-    if (filters.skills.length > 0) {
-      filtered = filtered.filter(job =>
-        filters.skills.some(skill => job.skills.includes(skill))
-      );
-    }
-
-    // Salary range filter
-    if (filters.salaryRange) {
-      const [min, max] = filters.salaryRange.split('-').map(Number);
-      filtered = filtered.filter(job => 
-        job.salaryMin >= min && job.salaryMax <= max
-      );
-    }
-
-    // Remote filter
-    if (filters.remote) {
-      filtered = filtered.filter(job => job.remote);
-    }
-
-    // Easy Apply filter
-    if (filters.easyApply) {
-      filtered = filtered.filter(job => job.easyApply);
-    }
-
-    // Sort results
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case 'relevance':
-          return 0; // Keep original order for relevance
-        case 'salary':
-          return b.salaryMin - a.salaryMin;
-        case 'date':
-          return new Date(a.posted) - new Date(b.posted);
-        case 'rating':
-          return b.rating - a.rating;
-        case 'applicants':
-          return a.applicants - b.applicants; // Fewer applicants = less competition
-        default:
-          return 0;
-      }
-    });
-
-    setFilteredJobs(filtered);
-  };
 
   const handleSearch = async () => {
     setIsLoading(true);
@@ -300,370 +224,29 @@ const JobSearch = () => {
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="bg-white p-6 rounded-lg shadow-lg mb-6">
-          <h1 className="text-3xl font-bold text-gray-800 mb-4">Job Search</h1>
-          
-          {/* Search Bar */}
-          <div className="flex flex-col md:flex-row gap-4 mb-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search for jobs, companies, skills, or keywords..."
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-            <div className="flex-1">
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="City, state, or remote"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-            <button
-              onClick={handleSearch}
-              disabled={isLoading}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center"
-            >
-              {isLoading ? (
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-              ) : (
-                <>
-                  <Search className="w-5 h-5 mr-2" />
-                  Search Jobs
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Advanced Filters Toggle and Results Summary */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center px-4 py-2 text-gray-600 hover:text-gray-800"
-              >
-                <Filter className="w-4 h-4 mr-2" />
-                Advanced Filters
-              </button>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded ${viewMode === 'grid' ? 'bg-blue-100 text-blue-600' : 'text-gray-400'}`}
-                >
-                  <div className="w-4 h-4 grid grid-cols-2 gap-0.5">
-                    <div className="bg-current rounded-sm"></div>
-                    <div className="bg-current rounded-sm"></div>
-                    <div className="bg-current rounded-sm"></div>
-                    <div className="bg-current rounded-sm"></div>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`p-2 rounded ${viewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'text-gray-400'}`}
-                >
-                  <div className="w-4 h-4 space-y-1">
-                    <div className="bg-current rounded-sm h-0.5"></div>
-                    <div className="bg-current rounded-sm h-0.5"></div>
-                    <div className="bg-current rounded-sm h-0.5"></div>
-                  </div>
-                </button>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              >
-                <option value="relevance">Most Relevant</option>
-                <option value="date">Most Recent</option>
-                <option value="salary">Highest Salary</option>
-                <option value="rating">Highest Rated</option>
-                <option value="applicants">Least Competition</option>
-              </select>
-              <p className="text-sm text-gray-600">
-                {filteredJobs.length} jobs found
-              </p>
-            </div>
-          </div>
-
-          {/* Advanced Filters Panel */}
-          {showFilters && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Experience Level
-                  </label>
-                  <select
-                    value={filters.experienceLevel}
-                    onChange={(e) => setFilters({...filters, experienceLevel: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Any Experience</option>
-                    <option value="Entry">Entry Level</option>
-                    <option value="Mid">Mid Level</option>
-                    <option value="Senior">Senior Level</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Job Type
-                  </label>
-                  <select
-                    value={filters.jobType}
-                    onChange={(e) => setFilters({...filters, jobType: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Any Type</option>
-                    <option value="Full-time">Full-time</option>
-                    <option value="Part-time">Part-time</option>
-                    <option value="Contract">Contract</option>
-                    <option value="Internship">Internship</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Company
-                  </label>
-                  <select
-                    value={filters.company}
-                    onChange={(e) => setFilters({...filters, company: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {companies.map(company => (
-                      <option key={company} value={company}>
-                        {company || 'Any Company'}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Salary Range
-                  </label>
-                  <select
-                    value={filters.salaryRange}
-                    onChange={(e) => setFilters({...filters, salaryRange: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Any Salary</option>
-                    <option value="50000-80000">$50k - $80k</option>
-                    <option value="80000-120000">$80k - $120k</option>
-                    <option value="120000-160000">$120k - $160k</option>
-                    <option value="160000-200000">$160k+</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Skills Filter */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Skills
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {allSkills.map(skill => (
-                    <button
-                      key={skill}
-                      onClick={() => toggleSkill(skill)}
-                      className={`px-3 py-1 rounded-full text-sm border transition-colors ${
-                        filters.skills.includes(skill)
-                          ? 'bg-blue-100 border-blue-300 text-blue-700'
-                          : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      {skill}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Checkboxes */}
-              <div className="flex items-center space-x-6">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={filters.remote}
-                    onChange={(e) => setFilters({...filters, remote: e.target.checked})}
-                    className="mr-2"
-                  />
-                  <span className="text-sm text-gray-700">Remote Only</span>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={filters.easyApply}
-                    onChange={(e) => setFilters({...filters, easyApply: e.target.checked})}
-                    className="mr-2"
-                  />
-                  <span className="text-sm text-gray-700">Easy Apply</span>
-                </label>
-                <button
-                  onClick={clearFilters}
-                  className="text-blue-600 hover:text-blue-800 text-sm underline"
-                >
-                  Clear All Filters
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Job Results */}
-        <div className={`space-y-4 ${viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : ''}`}>
-          {filteredJobs.map((job) => (
-            <div key={job.id} className="bg-white p-6 rounded-lg shadow-lg border border-gray-200">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start space-x-4 flex-1">
-                  <img src={job.logo} alt={job.company} className="w-12 h-12 rounded-lg" />
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <h3 className="text-xl font-semibold text-gray-800">{job.title}</h3>
-                      {job.easyApply && (
-                        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-                          Easy Apply
-                        </span>
-                      )}
-                      {job.remote && (
-                        <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                          Remote
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center space-x-4 text-gray-600 mb-3">
-                      <div className="flex items-center">
-                        <Building className="w-4 h-4 mr-1" />
-                        <span>{job.company}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <MapPin className="w-4 h-4 mr-1" />
-                        <span>{job.location}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <Clock className="w-4 h-4 mr-1" />
-                        <span>{job.posted}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center space-x-4 text-gray-600 mb-3">
-                      <div className="flex items-center">
-                        <DollarSign className="w-4 h-4 mr-1" />
-                        <span>{job.salary}</span>
-                      </div>
-                      <span>•</span>
-                      <span>{job.experience}</span>
-                      <span>•</span>
-                      <span>{job.type}</span>
-                    </div>
-
-                    <p className="text-gray-700 mb-4 line-clamp-2">{job.description}</p>
-
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {job.skills.map((skill, index) => (
-                        <span
-                          key={index}
-                          className="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full"
-                        >
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-
-                    {/* Additional job details */}
-                    <div className="flex items-center space-x-4 text-sm text-gray-500 mb-4">
-                      <div className="flex items-center">
-                        <Star className="w-4 h-4 mr-1" />
-                        <span>{job.rating}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <Users className="w-4 h-4 mr-1" />
-                        <span>{job.applicants} applicants</span>
-                      </div>
-                      <div className="flex items-center">
-                        <TrendingUp className="w-4 h-4 mr-1" />
-                        <span>{job.companySize}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-col space-y-2 ml-4">
-                  <button
-                    onClick={() => saveJob(job.id)}
-                    className={`p-2 rounded-lg border transition-colors ${
-                      job.saved
-                        ? 'bg-blue-50 border-blue-200 text-blue-600'
-                        : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    <Bookmark className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={() => applyToJob(job)}
-                    className={`p-2 rounded-lg border transition-colors ${
-                      job.easyApply
-                        ? 'bg-green-50 border-green-200 text-green-600 hover:bg-green-100'
-                        : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    {job.easyApply ? <Send className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
-                <div className="flex items-center space-x-4">
-                  <button
-                    onClick={() => applyToJob(job)}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      job.easyApply
-                        ? 'bg-green-600 text-white hover:bg-green-700'
-                        : 'bg-blue-600 text-white hover:bg-blue-700'
-                    }`}
-                  >
-                    {job.easyApply ? 'Easy Apply' : 'View Job'}
-                  </button>
-                  <button 
-                    onClick={() => saveJob(job.id)}
-                    className={`px-4 py-2 border rounded-lg transition-colors ${
-                      job.saved
-                        ? 'border-blue-300 text-blue-600 bg-blue-50'
-                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    {job.saved ? 'Saved' : 'Save Job'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {filteredJobs.length === 0 && !isLoading && (
-          <div className="text-center py-12">
-            <Search className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <h3 className="text-lg font-medium text-gray-600 mb-2">No jobs found</h3>
-            <p className="text-gray-500 mb-4">Try adjusting your search criteria or filters</p>
-            <button
-              onClick={clearFilters}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              Clear All Filters
-            </button>
-          </div>
-        )}
+        <JobFilters
+          filters={filters}
+          setFilters={setFilters}
+          companies={companies}
+          allSkills={allSkills}
+          showFilters={showFilters}
+          setShowFilters={setShowFilters}
+          clearFilters={clearFilters}
+          sortBy={sortBy}
+          setSortBy={setSortBy}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          location={location}
+          setLocation={setLocation}
+          toggleSkill={toggleSkill}
+        />
+        <JobList
+          jobs={filteredJobs}
+          saveJob={saveJob}
+          applyToJob={applyToJob}
+          isLoading={isLoading}
+          viewMode={viewMode}
+        />
       </div>
     </div>
   );

@@ -21,6 +21,10 @@ from ai_job_automation import get_automation_instance
 from fastapi import Body
 from ai_easy_apply_service import get_ai_service, ApplicantProfile, JobContext, ApplicationQuestion
 from datetime import datetime
+import PyPDF2
+import io
+import base64
+from fastapi.responses import JSONResponse
 
 app = FastAPI(title="LinkedIn Job Hunter API Bridge", version="2.0.0")
 
@@ -102,6 +106,24 @@ class SubmitApplicationRequest(BaseModel):
 # Import the new MCP client
 from mcp_client import call_mcp_tool, shutdown_mcp_client
 
+# Resume Management Models
+class ResumeUploadRequest(BaseModel):
+    filename: str
+    content: str  # base64 encoded file content
+
+class ResumeOptimizeRequest(BaseModel):
+    resume_id: str
+    resume_content: str
+    target_job: Optional[str] = None
+    target_company: Optional[str] = None
+
+class ResumeChatRequest(BaseModel):
+    resume_content: str
+    message: str
+    chat_history: Optional[List[Dict[str, str]]] = []
+
+MAX_RESUME_SIZE = 2 * 1024 * 1024  # 2MB
+
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint"""
@@ -163,7 +185,7 @@ async def save_job(request: SaveJobRequest):
 async def list_applied_jobs():
     """List applied jobs"""
     try:
-        result = await call_mcp_tool("list_applied_jobs")
+        result = await call_mcp_tool("list_applied_jobs", {})
         if "error" in result:
             raise HTTPException(status_code=400, detail=result["error"])
         return result
@@ -174,7 +196,7 @@ async def list_applied_jobs():
 async def job_recommendations():
     """Get job recommendations"""
     try:
-        result = await call_mcp_tool("get_job_recommendations")
+        result = await call_mcp_tool("get_job_recommendations", {})
         if "error" in result:
             raise HTTPException(status_code=400, detail=result["error"])
         return result
@@ -185,40 +207,11 @@ async def job_recommendations():
 async def list_saved_jobs():
     """List saved jobs"""
     try:
-        result = await call_mcp_tool("list_saved_jobs")
+        result = await call_mcp_tool("list_saved_jobs", {})
         if "error" in result:
             raise HTTPException(status_code=400, detail=result["error"])
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/get_credentials")
-async def get_credentials():
-    """Get current LinkedIn credentials (username only, password masked)"""
-    import os
-    from dotenv import load_dotenv
-    import pathlib
-    try:
-        cwd = os.getcwd()
-        env_path = os.path.abspath('.env')
-        print(f"[DEBUG] Current working directory: {cwd}")
-        print(f"[DEBUG] Looking for .env at: {env_path}")
-        if os.path.exists(env_path):
-            with open(env_path, 'r', encoding='utf-8') as f:
-                env_contents = f.read()
-            print(f"[DEBUG] .env contents:\n{env_contents}")
-        else:
-            print("[DEBUG] .env file does NOT exist!")
-        load_dotenv(dotenv_path=env_path, override=True)
-        username = os.getenv('LINKEDIN_USERNAME', '')
-        password = os.getenv('LINKEDIN_PASSWORD', '')
-        print(f"[DEBUG] Loaded credentials: username='{username}', password length={len(password)}")
-        return {
-            "username": username,
-            "configured": bool(username)
-        }
-    except Exception as e:
-        print(f"[DEBUG] Exception in get_credentials: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/update_credentials")
@@ -306,7 +299,7 @@ async def test_login():
         if not username or not password:
             raise HTTPException(status_code=400, detail="LinkedIn credentials not configured. Please update credentials first.")
         
-        result = await call_mcp_tool("login_linkedin_secure")
+        result = await call_mcp_tool("login_linkedin_secure", {})
         if "error" in result:
             raise HTTPException(status_code=400, detail=result["error"])
         return {
@@ -407,7 +400,7 @@ async def update_ai_preferences(request: dict = Body(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/ai_automation/upload_resume")
-async def upload_resume(request: dict = Body(...)):
+async def upload_resume_ai_automation(request: dict = Body(...)):
     """Upload a resume file"""
     try:
         automation = get_automation_instance()
@@ -481,7 +474,7 @@ async def add_application_note(request: AddNoteRequest):
 async def get_application_analytics():
     """Get application analytics and statistics"""
     try:
-        result = await call_mcp_tool("get_application_analytics")
+        result = await call_mcp_tool("get_application_analytics", {})
         if "error" in result:
             raise HTTPException(status_code=400, detail=result["error"])
         return result
@@ -624,7 +617,7 @@ async def get_application_status(job_url: str):
         decoded_url = urllib.parse.unquote(job_url)
         
         # Check if job has been applied to
-        applied_jobs_result = await call_mcp_tool("list_applied_jobs")
+        applied_jobs_result = await call_mcp_tool("list_applied_jobs", {})
         
         if "error" in applied_jobs_result:
             raise HTTPException(status_code=400, detail=applied_jobs_result["error"])
@@ -767,6 +760,185 @@ def find_available_port(start_port=8001, max_attempts=10):
             continue
     raise RuntimeError(f"No available ports found in range {start_port}-{start_port + max_attempts - 1}")
 
+@app.get("/api/llm_providers")
+async def get_llm_providers():
+    """Return which LLM providers are configured (Gemini, OpenAI)"""
+    load_dotenv(override=True)
+    gemini = bool(os.getenv('GEMINI_API_KEY', ''))
+    openai = bool(os.getenv('OPENAI_API_KEY', ''))
+    return {"gemini": gemini, "openai": openai}
+
+@app.post("/api/resume/optimize")
+async def optimize_resume(request: ResumeOptimizeRequest):
+    """Optimize resume using Gemini AI"""
+    try:
+        # Get AI service
+        ai_service = get_ai_service()
+        
+        # Create optimization prompt
+        prompt = f"""
+        Analyze and optimize this resume for better job applications.
+        
+        RESUME CONTENT:
+        {request.resume_content}
+        
+        TARGET JOB: {request.target_job or 'General optimization'}
+        TARGET COMPANY: {request.target_company or 'Any company'}
+        
+        Please provide:
+        1. Specific improvements and suggestions
+        2. Enhanced version of key sections
+        3. ATS optimization recommendations
+        4. Keyword suggestions for the target role
+        5. Overall score and areas for improvement
+        
+        Format your response in a clear, structured way.
+        """
+        
+        # Get AI response
+        result = await ai_service.generate_answer(
+            question=ApplicationQuestion(
+                id="optimize",
+                question=prompt,
+                type="textarea",
+                required=True,
+                category="optimization"
+            ),
+            applicant_profile=ApplicantProfile(
+                name="User",
+                email="user@example.com",
+                phone="",
+                location="",
+                education="",
+                work_authorization="",
+                salary_expectation="",
+                availability="",
+                experience_years=0,
+                skills=[],
+                languages=[],
+                current_position="",
+                target_roles=[],
+                achievements=[]
+            ),
+            job_context=JobContext(
+                title=request.target_job or "Software Engineer",
+                company=request.target_company or "Tech Company",
+                location="",
+                salary_range="",
+                description="",
+                job_type="full-time",
+                remote=False,
+                requirements=[],
+                responsibilities=[]
+            )
+        )
+        
+        if result.get("success"):
+            return {
+                "success": True,
+                "optimized_content": result.get("answer", ""),
+                "suggestions": result.get("suggestions", []),
+                "provider": result.get("provider", "unknown")
+            }
+        else:
+            return {
+                "success": False,
+                "error": result.get("error", "AI optimization failed"),
+                "fallback_suggestions": [
+                    "Use strong action verbs",
+                    "Quantify achievements with numbers",
+                    "Include relevant keywords",
+                    "Improve formatting and structure"
+                ]
+            }
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Optimization failed: {str(e)}")
+
+@app.post("/api/resume/chat")
+async def resume_chat(request: ResumeChatRequest):
+    """Chat with Gemini about resume and job applications"""
+    try:
+        # Get AI service
+        ai_service = get_ai_service()
+        
+        # Build context from chat history
+        context = ""
+        if request.chat_history:
+            context = "\n\nPREVIOUS CONVERSATION:\n"
+            for msg in request.chat_history[-5:]:  # Last 5 messages for context
+                context += f"{msg.get('role', 'user')}: {msg.get('content', '')}\n"
+        
+        # Create chat prompt
+        prompt = f"""
+        You are an expert resume and job application consultant. Help the user with their resume and job search questions.
+        
+        RESUME CONTENT:
+        {request.resume_content}
+        
+        {context}
+        
+        USER QUESTION: {request.message}
+        
+        Provide helpful, specific, and actionable advice. Be conversational but professional. 
+        If the question is about the resume, reference specific parts of it.
+        If it's about job applications, provide practical tips and strategies.
+        """
+        
+        # Get AI response
+        result = await ai_service.generate_answer(
+            question=ApplicationQuestion(
+                id="chat",
+                question=prompt,
+                type="textarea",
+                required=True,
+                category="consultation"
+            ),
+            applicant_profile=ApplicantProfile(
+                name="User",
+                email="user@example.com",
+                phone="",
+                location="",
+                education="",
+                work_authorization="",
+                salary_expectation="",
+                availability="",
+                experience_years=0,
+                skills=[],
+                languages=[],
+                current_position="",
+                target_roles=[],
+                achievements=[]
+            ),
+            job_context=JobContext(
+                title="Job Application",
+                company="",
+                location="",
+                salary_range="",
+                description="",
+                job_type="full-time",
+                remote=False,
+                requirements=[],
+                responsibilities=[]
+            )
+        )
+        
+        if result.get("success"):
+            return {
+                "success": True,
+                "response": result.get("answer", ""),
+                "provider": result.get("provider", "unknown")
+            }
+        else:
+            return {
+                "success": False,
+                "error": result.get("error", "Chat failed"),
+                "fallback_response": "I'm having trouble processing your request right now. Please try again or ask a different question."
+            }
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     import socket
@@ -807,9 +979,6 @@ if __name__ == "__main__":
         if is_port_in_use(port):
             print(f"Port {port} is in use, attempting to kill conflicting process...")
             kill_process_on_port(port)
-            # Wait a moment for the process to be killed
-            import time
-            time.sleep(1)
             
         if is_port_in_use(port):
             print(f"Port {port} still in use, trying next port...")

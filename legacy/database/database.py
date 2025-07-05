@@ -88,12 +88,18 @@ class DatabaseManager:
                 existing_user = session.query(User).filter(User.username == username).first()
                 if existing_user:
                     logger.warning(f"User already exists: {username}")
-                    return existing_user.id
+                    if isinstance(existing_user.id, int):
+                        return existing_user.id
+                    else:
+                        return None
                 user = User(username=username, email=email, **kwargs)
                 session.add(user)
                 session.flush()
                 logger.info(f"Created user: {username}")
-                return user.id
+                if isinstance(user.id, int):
+                    return user.id
+                else:
+                    return None
         except Exception as e:
             logger.error(f"Failed to create user: {e}")
             return None
@@ -103,7 +109,10 @@ class DatabaseManager:
         try:
             with self.get_session() as session:
                 user = session.query(User).filter(User.username == username).first()
-                return user.id if user else None
+                if user and isinstance(user.id, int):
+                    return user.id
+                else:
+                    return None
         except Exception as e:
             logger.error(f"Failed to get user: {e}")
             return None
@@ -119,7 +128,7 @@ class DatabaseManager:
                 for key, value in kwargs.items():
                     if hasattr(user, key):
                         setattr(user, key, value)
-                user.updated_at = datetime.now()
+                setattr(user, 'updated_at', datetime.now())
                 logger.info(f"Updated user: {username}")
                 return True
         except Exception as e:
@@ -263,11 +272,9 @@ class DatabaseManager:
                 if not session_data:
                     logger.warning(f"Session not found: {session_id}")
                     return False
-                session_data.end_time = datetime.now()
-                if session_data.start_time:
-                    session_data.session_duration = int(
-                        (session_data.end_time - session_data.start_time).total_seconds()
-                    )
+                setattr(session_data, 'end_time', datetime.now())
+                if getattr(session_data, 'start_time', None):
+                    setattr(session_data, 'session_duration', int((session_data.end_time - session_data.start_time).total_seconds()))
                 logger.info(f"Ended session: {session_id}")
                 return True
         except Exception as e:
@@ -317,7 +324,7 @@ class DatabaseManager:
                 setting = session.query(SystemSettings).filter(
                     SystemSettings.setting_key == key
                 ).first()
-                return setting.setting_value if setting else None
+                return str(setting.setting_value) if setting and setting.setting_value is not None else None
         except Exception as e:
             logger.error(f"Failed to get setting: {e}")
             return None
@@ -331,10 +338,10 @@ class DatabaseManager:
                     SystemSettings.setting_key == key
                 ).first()
                 if setting:
-                    setting.setting_value = value
-                    setting.setting_type = setting_type
+                    setattr(setting, 'setting_value', value)
+                    setattr(setting, 'setting_type', setting_type)
                     if description:
-                        setting.description = description
+                        setattr(setting, 'description', description)
                 else:
                     setting = SystemSettings(
                         setting_key=key,
@@ -403,4 +410,46 @@ class DatabaseManager:
                 
         except Exception as e:
             logger.error(f"Failed to cleanup old data: {e}")
-            return 0 
+            return 0
+    
+    def get_user_by_id(self, user_id: int) -> Optional[dict]:
+        """Get User as dict by user_id"""
+        try:
+            with self.get_session() as session:
+                user = session.query(User).filter(User.id == user_id).first()
+                if user is not None and hasattr(user, 'to_dict'):
+                    return user.to_dict()
+                return None
+        except Exception as e:
+            logger.error(f"Failed to get user by id: {e}")
+            return None
+    
+    def get_credentials(self, username: str) -> Optional[dict]:
+        """Get credentials for a user (for test endpoint)"""
+        try:
+            with self.get_session() as session:
+                username_setting = session.query(SystemSettings).filter(SystemSettings.setting_key == "linkedin_username").first()
+                password_setting = session.query(SystemSettings).filter(SystemSettings.setting_key == "linkedin_password").first()
+                if username_setting and password_setting:
+                    return {
+                        "username": str(username_setting.setting_value),
+                        "password": str(password_setting.setting_value)
+                    }
+                return None
+        except Exception as e:
+            logger.error(f"Failed to get credentials: {e}")
+            return None
+    
+    def save_resume_path(self, username: str, resume_path: str) -> bool:
+        """Save resume path to user profile"""
+        try:
+            with self.get_session() as session:
+                user = session.query(User).filter(User.username == username).first()
+                if not user:
+                    return False
+                setattr(user, 'resume_url', resume_path)
+                setattr(user, 'updated_at', datetime.now())
+                return True
+        except Exception as e:
+            logger.error(f"Failed to save resume path: {e}")
+            return False 

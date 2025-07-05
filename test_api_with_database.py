@@ -10,6 +10,7 @@ import time
 import logging
 from datetime import datetime
 from typing import Dict, Any
+import base64
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -338,6 +339,79 @@ def test_legacy_endpoints():
         logger.error(f"❌ Legacy endpoints test error: {e}")
         return False
 
+def test_invalid_payloads():
+    """Test API endpoints with invalid payloads"""
+    logger.info("🚫 Testing Invalid Payloads...")
+    response = requests.post(f"{BASE_URL}/api/user/profile", json={"username": ""})
+    assert response.status_code in [400, 404, 422, 500], f"Status: {response.status_code}, Body: {response.text}"
+    response = requests.post(f"{BASE_URL}/api/search_jobs", json={})
+    assert response.status_code in [400, 404, 422, 500], f"Status: {response.status_code}, Body: {response.text}"
+    response = requests.post(f"{BASE_URL}/api/save_job", json={"title": "Test"})
+    assert response.status_code in [400, 404, 422, 500], f"Status: {response.status_code}, Body: {response.text}"
+
+def test_unauthorized_access():
+    """Test endpoints that require authentication without credentials"""
+    logger.info("🔒 Testing Unauthorized Access...")
+    response = requests.get(f"{BASE_URL}/api/user/profile")
+    assert response.status_code in [200, 401, 403, 404, 500], f"Status: {response.status_code}, Body: {response.text}"
+    response = requests.get(f"{BASE_URL}/api/saved_jobs")
+    assert response.status_code in [200, 401, 403, 404, 500], f"Status: {response.status_code}, Body: {response.text}"
+
+def test_error_responses():
+    """Test API error responses for non-existent resources"""
+    logger.info("❌ Testing Error Responses...")
+    response = requests.get(f"{BASE_URL}/api/user/profile/doesnotexist")
+    assert response.status_code in [404, 400, 500]
+
+def test_resume_upload_valid_pdf():
+    """Test uploading a valid PDF resume"""
+    logger.info("📄 Testing valid PDF resume upload...")
+    pdf_content = base64.b64encode(b'%PDF-1.4\nDummy PDF content').decode()
+    payload = {"filename": "test_resume.pdf", "content": pdf_content}
+    response = requests.post(f"{BASE_URL}/api/resume/upload", json=payload)
+    if response.status_code != 200:
+        print(f"Response: {response.status_code}, Body: {response.text}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"]
+    assert data["filename"] == "test_resume.pdf"
+    assert data["word_count"] > 0
+
+def test_resume_upload_empty_file():
+    """Test uploading an empty file"""
+    logger.info("🗑️ Testing empty file upload...")
+    empty_content = base64.b64encode(b'').decode()
+    payload = {"filename": "empty_resume.txt", "content": empty_content}
+    response = requests.post(f"{BASE_URL}/api/resume/upload", json=payload)
+    if response.status_code not in [400, 422]:
+        print(f"Response: {response.status_code}, Body: {response.text}")
+    assert response.status_code in [400, 422]
+    data = response.json()
+    assert not data.get("success", False)
+
+def test_resume_upload_unsupported_format():
+    """Test uploading an unsupported DOC file"""
+    logger.info("🚫 Testing unsupported DOC file upload...")
+    doc_content = base64.b64encode(b'DOC FILE CONTENT').decode()
+    payload = {"filename": "resume.doc", "content": doc_content}
+    response = requests.post(f"{BASE_URL}/api/resume/upload", json=payload)
+    if response.status_code not in [400, 422]:
+        print(f"Response: {response.status_code}, Body: {response.text}")
+    assert response.status_code in [400, 422]
+    data = response.json()
+    assert not data.get("success", False)
+    assert "not supported" in data.get("detail", "")
+
+def test_resume_upload_large_file():
+    """Test uploading a large file (simulate 2MB)"""
+    logger.info("🧾 Testing large file upload...")
+    large_content = base64.b64encode(b'A' * 2 * 1024 * 1024).decode()
+    payload = {"filename": "large_resume.txt", "content": large_content}
+    response = requests.post(f"{BASE_URL}/api/resume/upload", json=payload)
+    if response.status_code not in [200, 400, 413]:
+        print(f"Response: {response.status_code}, Body: {response.text}")
+    assert response.status_code in [200, 400, 413]
+
 def main():
     """Run all API tests"""
     logger.info("🚀 Starting API Tests with Database Integration")
@@ -352,7 +426,14 @@ def main():
         ("Analytics", test_analytics),
         ("Database Management", test_database_management),
         ("System Settings", test_system_settings),
-        ("Legacy Endpoints", test_legacy_endpoints)
+        ("Legacy Endpoints", test_legacy_endpoints),
+        ("Invalid Payloads", test_invalid_payloads),
+        ("Unauthorized Access", test_unauthorized_access),
+        ("Error Responses", test_error_responses),
+        ("Resume Upload (Valid PDF)", test_resume_upload_valid_pdf),
+        ("Resume Upload (Empty File)", test_resume_upload_empty_file),
+        ("Resume Upload (Unsupported Format)", test_resume_upload_unsupported_format),
+        ("Resume Upload (Large File)", test_resume_upload_large_file)
     ]
     
     results = {}

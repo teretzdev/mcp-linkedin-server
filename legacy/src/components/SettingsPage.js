@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Settings, User, Lock, Save, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 
-const SettingsPage = () => {
+const SettingsPage = ({ geminiKey, onGeminiKeyChange }) => {
   const [credentials, setCredentials] = useState({
     username: '',
     password: ''
@@ -12,15 +12,14 @@ const SettingsPage = () => {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState(''); // 'success' or 'error'
   const [serverStatus, setServerStatus] = useState('disconnected');
-  const [geminiKey, setGeminiKey] = useState('');
+  const [localGeminiKey, setLocalGeminiKey] = useState(geminiKey || '');
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     checkServerStatus();
     loadCredentials();
-    const storedKey = localStorage.getItem('gemini_api_key') || '';
-    setGeminiKey(storedKey);
-  }, []);
+    setLocalGeminiKey(geminiKey || '');
+  }, [geminiKey]);
 
   const checkServerStatus = async () => {
     try {
@@ -97,9 +96,14 @@ const SettingsPage = () => {
     }
   };
 
+  const handleGeminiKeyInput = (e) => {
+    setLocalGeminiKey(e.target.value);
+  };
+
   const handleSave = (e) => {
     e.preventDefault();
-    localStorage.setItem('gemini_api_key', geminiKey);
+    localStorage.setItem('gemini_api_key', localGeminiKey);
+    if (onGeminiKeyChange) onGeminiKeyChange(localGeminiKey);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -256,35 +260,26 @@ const SettingsPage = () => {
       {/* Gemini API Key */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
-          <User className="w-5 h-5 mr-2" />
+          <Settings className="w-5 h-5 mr-2" />
           Gemini API Key
         </h2>
         
         <form onSubmit={handleSave} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Gemini API Key
-            </label>
-            <input
-              type="text"
-              value={geminiKey}
-              onChange={e => setGeminiKey(e.target.value)}
-              placeholder="Paste your Gemini API key here"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Required for AI-powered features (Google Gemini). Your key is stored securely in your browser.
-            </p>
-          </div>
+          <input
+            type="text"
+            value={localGeminiKey}
+            onChange={handleGeminiKeyInput}
+            placeholder="Paste your Gemini API key here..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+          />
           <button
             type="submit"
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="flex items-center space-x-2 px-4 py-2 bg-linkedin-600 text-white rounded-lg hover:bg-linkedin-700 transition-colors"
           >
-            Save Settings
+            <Save className="w-4 h-4" />
+            <span>Save Gemini Key</span>
           </button>
-          {saved && (
-            <div className="text-green-600 font-medium mt-2">Gemini API key saved!</div>
-          )}
+          {saved && <span className="text-green-600 text-sm">Gemini key saved!</span>}
         </form>
       </div>
 
@@ -299,7 +294,7 @@ const SettingsPage = () => {
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-600">Gemini API Key</span>
             <span className="text-sm text-gray-500">
-              {geminiKey ? <span className="text-green-600">Set</span> : <span className="text-red-600">Not Set</span>}
+              {localGeminiKey ? <span className="text-green-600">Set</span> : <span className="text-red-600">Not Set</span>}
             </span>
           </div>
 
