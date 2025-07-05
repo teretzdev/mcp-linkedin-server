@@ -144,6 +144,9 @@ class MCPClient:
             )
             asyncio.create_task(self._read_stdout())
             asyncio.create_task(self._read_stderr())
+            
+            # Send initialize request
+            await self.call("initialize", {"protocolVersion": "1.0", "capabilities": {}, "clientInfo": {}})
     
     async def _read_stdout(self):
         """Read from stdout"""
@@ -176,12 +179,21 @@ class MCPClient:
         """Call MCP server"""
         await self.connect()
         self.request_id += 1
-        request = {
-            "jsonrpc": "2.0",
-            "method": method,
-            "params": params,
-            "id": self.request_id,
-        }
+        
+        if method == "initialize":
+            request = {
+                "jsonrpc": "2.0",
+                "method": "initialize",
+                "params": params,
+                "id": self.request_id
+            }
+        else:
+            request = {
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {"name": method, "params": params},
+                "id": self.request_id,
+            }
         future = asyncio.get_event_loop().create_future()
         self.futures[self.request_id] = future
 
