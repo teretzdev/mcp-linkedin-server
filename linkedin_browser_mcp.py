@@ -1,4 +1,4 @@
-from fastmcp import FastMCP, Context
+THIS SHOULD BE A LINTER ERRORfrom fastmcp import FastMCP, Context
 from playwright.async_api import async_playwright
 import asyncio
 import os
