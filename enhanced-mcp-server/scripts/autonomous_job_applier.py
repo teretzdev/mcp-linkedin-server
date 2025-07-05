@@ -33,12 +33,7 @@ async def run_autonomous_job_application(job_query: str, location: str, resume_p
         logger.info("Starting autonomous job application process...")
         
         # 1. Login to LinkedIn
-        login_tool = server.mcp.tools.get("login_linkedin_secure")
-        if not login_tool:
-            logger.error("login_linkedin_secure tool not found.")
-            return
-            
-        login_result = await login_tool(ctx=None)
+        login_result = await server.mcp.tools["login_linkedin_secure"](ctx=None)
         if login_result.get("status") != "success":
             logger.error("Login failed", reason=login_result.get("message"))
             return
@@ -46,12 +41,7 @@ async def run_autonomous_job_application(job_query: str, location: str, resume_p
         logger.info("Login successful. Starting job search...")
 
         # 2. Search for jobs
-        search_tool = server.mcp.tools.get("search_linkedin_jobs")
-        if not search_tool:
-            logger.error("search_linkedin_jobs tool not found.")
-            return
-
-        search_result = await search_tool(ctx=None, query=job_query, location=location, count=10)
+        search_result = await server.mcp.tools["search_linkedin_jobs"](ctx=None, query=job_query, location=location, count=10)
 
         if search_result.get("status") != "success":
             logger.error("Job search failed", reason=search_result.get("message"))
@@ -61,18 +51,13 @@ async def run_autonomous_job_application(job_query: str, location: str, resume_p
         logger.info(f"Found {len(jobs)} jobs to process.")
 
         # 3. Apply to jobs
-        apply_tool = server.mcp.tools.get("apply_to_linkedin_job")
-        if not apply_tool:
-            logger.error("apply_to_linkedin_job tool not found.")
-            return
-
         for job in jobs:
             job_url = job.get("jobUrl")
             if not job_url:
                 continue
 
             logger.info(f"Applying to job: {job.get('title')} at {job.get('company')}")
-            apply_result = await apply_tool(ctx=None, job_url=job_url, resume_path=resume_path)
+            apply_result = await server.mcp.tools["apply_to_linkedin_job"](ctx=None, job_url=job_url, resume_path=resume_path)
             
             if apply_result.get("status") == "success":
                 logger.info("Successfully applied to job", job_url=job_url)
