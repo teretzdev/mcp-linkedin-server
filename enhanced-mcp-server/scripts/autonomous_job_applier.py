@@ -10,14 +10,15 @@ import os
 import json
 from pathlib import Path
 import structlog
+import sys
 
 # Add the project root to the Python path
 project_root = Path(__file__).parent.parent
-import sys
 sys.path.insert(0, str(project_root))
 
 from mcp_server.core.server import get_server
 from fastmcp import FastMCP
+from dotenv import load_dotenv
 
 logger = structlog.get_logger(__name__)
 
@@ -31,8 +32,25 @@ async def run_autonomous_job_application(job_query: str, location: str, resume_p
     try:
         logger.info("Starting autonomous job application process...")
         
-        # 1. Search for jobs
-        search_tool = get_server().mcp.tools["search_linkedin_jobs"]
+        # 1. Login to LinkedIn
+        login_tool = server.mcp.tools.get("login_linkedin_secure")
+        if not login_tool:
+            logger.error("login_linkedin_secure tool not found.")
+            return
+            
+        login_result = await login_tool(ctx=None)
+        if login_result.get("status") != "success":
+            logger.error("Login failed", reason=login_result.get("message"))
+            return
+            
+        logger.info("Login successful. Starting job search...")
+
+        # 2. Search for jobs
+        search_tool = server.mcp.tools.get("search_linkedin_jobs")
+        if not search_tool:
+            logger.error("search_linkedin_jobs tool not found.")
+            return
+
         search_result = await search_tool(ctx=None, query=job_query, location=location, count=10)
 
         if search_result.get("status") != "success":
@@ -42,8 +60,12 @@ async def run_autonomous_job_application(job_query: str, location: str, resume_p
         jobs = search_result.get("jobs", [])
         logger.info(f"Found {len(jobs)} jobs to process.")
 
-        # 2. Apply to jobs
-        apply_tool = get_server().mcp.tools["apply_to_linkedin_job"]
+        # 3. Apply to jobs
+        apply_tool = server.mcp.tools.get("apply_to_linkedin_job")
+        if not apply_tool:
+            logger.error("apply_to_linkedin_job tool not found.")
+            return
+
         for job in jobs:
             job_url = job.get("jobUrl")
             if not job_url:
@@ -63,6 +85,9 @@ async def run_autonomous_job_application(job_query: str, location: str, resume_p
 
 
 if __name__ == "__main__":
+    # Load environment variables from .env file
+    load_dotenv()
+
     # Configuration
     JOB_QUERY = "Software Engineer"
     LOCATION = "Remote"
