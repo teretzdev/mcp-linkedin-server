@@ -1,0 +1,1 @@
+# Job application tools for the Enhanced MCP Server

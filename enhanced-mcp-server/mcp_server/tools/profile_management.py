@@ -1,0 +1,1 @@
+# Profile management tools for the Enhanced MCP Server

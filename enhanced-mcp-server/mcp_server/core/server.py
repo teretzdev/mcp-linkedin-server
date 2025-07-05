@@ -16,6 +16,7 @@ import structlog
 from .browser_manager import BrowserManager
 from .auth_manager import AuthManager
 from .error_handler import ErrorHandler
+from .database_manager import DatabaseManager
 
 # Configure structured logging
 structlog.configure(
@@ -57,6 +58,7 @@ class LinkedInMCPServer:
         self.browser_manager = BrowserManager(self.config.get("browser", {}))
         self.auth_manager = AuthManager(self.config.get("encryption_key"))
         self.error_handler = ErrorHandler()
+        self.database_manager = DatabaseManager(self.config.get("database", {}))
         
         # Session management
         self._sessions: Dict[str, Dict[str, Any]] = {}
@@ -194,7 +196,7 @@ class LinkedInMCPServer:
             await self.browser_manager.initialize()
             
             # Initialize database connection
-            # TODO: Add database initialization
+            self.database_manager.initialize()
             
             logger.info("Server initialization completed")
             return True
@@ -210,7 +212,7 @@ class LinkedInMCPServer:
             await self.browser_manager.cleanup_all()
             
             # Cleanup database connections
-            # TODO: Add database cleanup
+            self.database_manager.cleanup()
             
             logger.info("Server cleanup completed")
             

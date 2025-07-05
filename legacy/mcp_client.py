@@ -127,176 +127,76 @@ class CircuitBreaker:
 class MCPClient:
     """Robust MCP client with connection pooling, retry logic, and circuit breakers"""
     
-    def __init__(self, config: Optional[MCPConfig] = None):
-        self.config = config or MCPConfig()
-        self.connection_pool = MCPConnectionPool(self.config)
-        self.circuit_breaker = CircuitBreaker()
-        self.status = MCPStatus.DISCONNECTED
-        self._health_check_task: Optional[asyncio.Task] = None
-        self._lock = asyncio.Lock()
+    def __init__(self, command: str = "python3 legacy/linkedin_browser_mcp.py"):
+        self.command = command
+        self.process: Optional[asyncio.subprocess.Process] = None
+        self.request_id = 0
+        self.futures = {}
     
     async def connect(self):
         """Initialize the MCP client"""
-        try:
-            await self.connection_pool.initialize()
-            await self._health_check()
-            self.status = MCPStatus.CONNECTED
-            self._start_health_monitoring()
-            logger.info("MCP client connected successfully")
-        except Exception as e:
-            self.status = MCPStatus.ERROR
-            logger.error(f"Failed to connect MCP client: {e}")
-            raise
+        if self.process is None:
+            self.process = await asyncio.create_subprocess_exec(
+                *self.command.split(),
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            asyncio.create_task(self._read_stdout())
+            asyncio.create_task(self._read_stderr())
     
-    async def disconnect(self):
-        """Disconnect the MCP client"""
-        if self._health_check_task:
-            self._health_check_task.cancel()
-        
-        await self.connection_pool.close()
-        self.status = MCPStatus.DISCONNECTED
-        logger.info("MCP client disconnected")
-    
-    async def _health_check(self) -> bool:
-        """Perform health check on MCP server"""
-        try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                response = await client.get(
-                    f"http://{self.config.host}:{self.config.port}/health"
-                )
-                if response.status_code == 200:
-                    return True
-        except Exception as e:
-            logger.warning(f"Health check failed: {e}")
-        
-        return False
-    
-    def _start_health_monitoring(self):
-        """Start periodic health monitoring"""
-        async def health_monitor():
-            while True:
-                try:
-                    await asyncio.sleep(self.config.health_check_interval)
-                    is_healthy = await self._health_check()
-                    
-                    if is_healthy and self.status != MCPStatus.CONNECTED:
-                        self.status = MCPStatus.CONNECTED
-                        logger.info("MCP server health restored")
-                    elif not is_healthy and self.status == MCPStatus.CONNECTED:
-                        self.status = MCPStatus.ERROR
-                        logger.warning("MCP server health check failed")
-                
-                except asyncio.CancelledError:
+    async def _read_stdout(self):
+        """Read from stdout"""
+        if self.process and self.process.stdout:
+            while self.process.stdout:
+                line = await self.process.stdout.readline()
+                if not line:
                     break
-                except Exception as e:
-                    logger.error(f"Health monitoring error: {e}")
-        
-        self._health_check_task = asyncio.create_task(health_monitor())
-    
-    async def _execute_with_retry(self, method: str, endpoint: str, 
-                                data: Optional[Dict] = None) -> Dict[str, Any]:
-        """Execute MCP request with retry logic"""
-        if not self.circuit_breaker.can_execute():
-            raise Exception("Circuit breaker is open")
-        
-        last_exception = None
-        
-        for attempt in range(self.config.max_retries + 1):
-            try:
-                connection = await self.connection_pool.get_connection()
-                
                 try:
-                    if method.upper() == "GET":
-                        response = await connection.get(endpoint)
-                    elif method.upper() == "POST":
-                        response = await connection.post(endpoint, json=data)
-                    else:
-                        raise ValueError(f"Unsupported HTTP method: {method}")
-                    
-                    if response.status_code == 200:
-                        self.circuit_breaker.on_success()
-                        return response.json()
-                    else:
-                        raise Exception(f"HTTP {response.status_code}: {response.text}")
-                
-                finally:
-                    await self.connection_pool.release_connection(connection)
-            
-            except Exception as e:
-                last_exception = e
-                self.circuit_breaker.on_failure()
-                
-                if attempt < self.config.max_retries:
-                    logger.warning(f"MCP request failed (attempt {attempt + 1}): {e}")
-                    await asyncio.sleep(self.config.retry_delay * (2 ** attempt))
-                else:
-                    logger.error(f"MCP request failed after {self.config.max_retries} attempts: {e}")
-        
-        raise last_exception or Exception("Unknown error")
+                    response = json.loads(line)
+                    future = self.futures.pop(response.get("id"), None)
+                    if future:
+                        if "error" in response:
+                            future.set_exception(Exception(response["error"].get("message")))
+                        else:
+                            future.set_result(response.get("result"))
+                except json.JSONDecodeError:
+                    logger.warning(f"MCPClient: Received non-JSON response: {line.decode()}")
     
-    async def search_jobs(self, keywords: str, location: str, 
-                         limit: int = 10) -> Dict[str, Any]:
-        """Search for jobs using MCP server"""
-        data = {
-            "keywords": keywords,
-            "location": location,
-            "limit": limit
+    async def _read_stderr(self):
+        """Read from stderr"""
+        if self.process and self.process.stderr:
+            while self.process.stderr:
+                line = await self.process.stderr.readline()
+                if not line:
+                    break
+                logger.error(f"MCP Server stderr: {line.decode().strip()}")
+    
+    async def call(self, method: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Call MCP server"""
+        await self.connect()
+        self.request_id += 1
+        request = {
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params,
+            "id": self.request_id,
         }
-        
-        return await self._execute_with_retry("POST", "/api/search_jobs", data)
+        future = asyncio.get_event_loop().create_future()
+        self.futures[self.request_id] = future
+
+        if self.process and self.process.stdin:
+            self.process.stdin.write((json.dumps(request) + "\n").encode())
+            await self.process.stdin.drain()
+
+        return await asyncio.wait_for(future, timeout=60) # 60 second timeout
     
-    async def apply_job(self, job_id: str, resume_path: Optional[str] = None) -> Dict[str, Any]:
-        """Apply to a job using MCP server"""
-        data = {
-            "job_id": job_id,
-            "resume_path": resume_path
-        }
-        
-        return await self._execute_with_retry("POST", "/api/apply_job", data)
-    
-    async def save_job(self, job_id: str) -> Dict[str, Any]:
-        """Save a job using MCP server"""
-        data = {"job_id": job_id}
-        return await self._execute_with_retry("POST", "/api/save_job", data)
-    
-    async def get_job_recommendations(self, user_id: str) -> Dict[str, Any]:
-        """Get job recommendations using MCP server"""
-        return await self._execute_with_retry("GET", f"/api/recommendations/{user_id}")
-    
-    async def get_application_status(self, application_id: str) -> Dict[str, Any]:
-        """Get application status using MCP server"""
-        return await self._execute_with_retry("GET", f"/api/application/{application_id}")
-    
-    async def update_application_status(self, application_id: str, 
-                                      status: str, notes: Optional[str] = None) -> Dict[str, Any]:
-        """Update application status using MCP server"""
-        data = {
-            "status": status,
-            "notes": notes
-        }
-        return await self._execute_with_retry("POST", f"/api/application/{application_id}/status", data)
-    
-    async def get_dashboard_stats(self) -> Dict[str, Any]:
-        """Get dashboard statistics using MCP server"""
-        return await self._execute_with_retry("GET", "/api/dashboard/stats")
-    
-    async def get_saved_jobs(self, user_id: str) -> Dict[str, Any]:
-        """Get saved jobs using MCP server"""
-        return await self._execute_with_retry("GET", f"/api/saved_jobs/{user_id}")
-    
-    async def get_applied_jobs(self, user_id: str) -> Dict[str, Any]:
-        """Get applied jobs using MCP server"""
-        return await self._execute_with_retry("GET", f"/api/applied_jobs/{user_id}")
-    
-    def get_status(self) -> Dict[str, Any]:
-        """Get client status information"""
-        return {
-            "status": self.status.value,
-            "circuit_breaker_state": self.circuit_breaker.state,
-            "failure_count": self.circuit_breaker.failure_count,
-            "connection_pool_size": len(self.connection_pool._connections),
-            "available_connections": len(self.connection_pool._available)
-        }
+    async def close(self):
+        """Close the MCP client"""
+        if self.process:
+            self.process.terminate()
+            await self.process.wait()
+            self.process = None
 
 
 # Global MCP client instance
@@ -314,49 +214,22 @@ async def get_mcp_client() -> MCPClient:
     return _mcp_client
 
 
-async def close_mcp_client():
-    """Close the global MCP client instance"""
+async def call_mcp_tool(tool_name: str, params: dict = {}) -> Dict[str, Any]:
+    """Call MCP tool"""
+    client = await get_mcp_client()
+    # The context 'ctx' is not available here, so we pass a placeholder.
+    # The MCP server side should be able to handle a missing or simplified context.
+    mcp_params = {"ctx": {"id": "api_bridge"}, **params}
+    return await client.call(tool_name, mcp_params)
+
+
+async def shutdown_mcp_client():
+    """Shuts down the MCP client."""
     global _mcp_client
     
     if _mcp_client:
-        await _mcp_client.disconnect()
+        await _mcp_client.close()
         _mcp_client = None
-
-
-@asynccontextmanager
-async def mcp_client_context():
-    """Context manager for MCP client"""
-    client = await get_mcp_client()
-    try:
-        yield client
-    finally:
-        # Don't close the global client here, it's managed globally
-        pass
-
-
-# Convenience functions for common operations
-async def search_jobs(keywords: str, location: str, limit: int = 10) -> Dict[str, Any]:
-    """Search for jobs"""
-    client = await get_mcp_client()
-    return await client.search_jobs(keywords, location, limit)
-
-
-async def apply_job(job_id: str, resume_path: Optional[str] = None) -> Dict[str, Any]:
-    """Apply to a job"""
-    client = await get_mcp_client()
-    return await client.apply_job(job_id, resume_path)
-
-
-async def save_job(job_id: str) -> Dict[str, Any]:
-    """Save a job"""
-    client = await get_mcp_client()
-    return await client.save_job(job_id)
-
-
-async def get_dashboard_stats() -> Dict[str, Any]:
-    """Get dashboard statistics"""
-    client = await get_mcp_client()
-    return await client.get_dashboard_stats()
 
 
 if __name__ == "__main__":
@@ -366,15 +239,11 @@ if __name__ == "__main__":
         try:
             await client.connect()
             
-            # Search for jobs
-            jobs = await client.search_jobs("python developer", "remote", 5)
-            print(f"Found {len(jobs.get('jobs', []))} jobs")
-            
-            # Get dashboard stats
-            stats = await client.get_dashboard_stats()
-            print(f"Dashboard stats: {stats}")
+            # Call a tool
+            result = await client.call("search_jobs", {"keywords": "python developer", "location": "remote", "limit": 5})
+            print(f"Search jobs result: {result}")
             
         finally:
-            await client.disconnect()
+            await client.close()
     
     asyncio.run(main()) 

@@ -57,34 +57,40 @@ linkedin-job-hunter/
 
 ### 1. Install Dependencies
 
+**NOTE:** This project uses a very specific set of dependencies. It is recommended to use a virtual environment. The dependencies in `legacy/requirements.txt` have been updated to work with Python 3.13, but some packages might still have issues on different OSes.
+
 #### Enhanced Server
 ```bash
 cd enhanced-mcp-server
 pip install -r requirements.txt
 ```
 
-#### Legacy Server
+#### Legacy Server & API Bridge
 ```bash
-cd legacy
-pip install -r requirements.txt
+pip install -r legacy/requirements.txt
 ```
 
-### 2. Run Health Check
+### 2. Run the Legacy System
+
+The legacy system consists of two parts: the `linkedin_browser_mcp.py` server and the `api_bridge.py` server.
+
+#### Start the MCP Server
 ```bash
-cd enhanced-mcp-server
-python scripts/health_check.py
+cd legacy
+python linkedin_browser_mcp.py
+```
+
+#### Start the API Bridge
+In a separate terminal:
+```bash
+cd legacy
+python api_bridge.py
 ```
 
 ### 3. Start Enhanced Server
 ```bash
 cd enhanced-mcp-server
 python scripts/start_enhanced_mcp_server.py
-```
-
-### 4. Start Legacy Server (if needed)
-```bash
-cd legacy
-python linkedin_browser_mcp.py
 ```
 
 ## 🔄 Migration
@@ -250,6 +256,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ---
 
-**Project Status**: Refactored with Enhanced MCP Server  
-**Last Updated**: 2025-07-03  
-**Next Review**: 2025-07-10 
+**Project Status**: Refactored with a functional legacy system and a foundational Enhanced MCP Server.
+**Last Updated**: 2025-07-05
+**Next Review**: 2025-07-12 

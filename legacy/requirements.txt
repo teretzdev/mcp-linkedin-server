@@ -1,73 +1,72 @@
 # LinkedIn Job Hunter - Python Dependencies
 
 # Core Framework
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-pydantic==2.5.0
+fastapi
+uvicorn[standard]
+pydantic
 
 # Web Scraping and Browser Automation
-playwright==1.40.0
-selenium==4.15.2
+playwright
+selenium
 
 # System and Process Management
-psutil==5.9.6
+psutil
 
 # Security and Authentication
-PyJWT==2.8.0
-bcrypt==4.1.2
-python-multipart==0.0.6
+PyJWT
+bcrypt
+python-multipart
 
 # HTTP and API
-requests==2.31.0
-httpx==0.25.2
-aiohttp==3.9.1
+requests
+httpx
+aiohttp
 
 # Environment and Configuration
-python-dotenv==1.0.0
-pydantic-settings==2.1.0
+python-dotenv
+pydantic-settings
 
 # Database
-sqlalchemy==2.0.23
-alembic==1.13.1
-sqlite3
+sqlalchemy
+alembic
 
 # AI and Machine Learning
-openai==1.3.7
-google-generativeai==0.3.2
-langchain==0.0.350
+openai
+google-generativeai
+langchain
 
 # Data Processing
-pandas==2.1.4
-numpy==1.25.2
+# pandas==2.1.4
+# numpy==1.25.2
 
 # Testing
-pytest==7.4.3
-pytest-asyncio==0.21.1
-pytest-cov==4.1.0
-pytest-mock==3.12.0
+pytest
+pytest-asyncio
+pytest-cov
+pytest-mock
 
 # Development Tools
-black==23.11.0
-flake8==6.1.0
-mypy==1.7.1
-pre-commit==3.6.0
+black
+flake8
+mypy
+pre-commit
 
 # Logging and Monitoring
-structlog==23.2.0
-prometheus-client==0.19.0
+structlog
+prometheus-client
 
 # Utilities
-click==8.1.7
-rich==13.7.0
-tqdm==4.66.1
-python-dateutil==2.8.2
+click
+rich
+tqdm
+python-dateutil
 
 # MCP (Model Context Protocol)
-mcp==1.0.0
+# mcp==1.0.0
 
 # Optional: Performance and Caching
-redis==5.0.1
-celery==5.3.4
+redis
+celery
 
 # Optional: Production
-gunicorn==21.2.0 
+gunicorn 
