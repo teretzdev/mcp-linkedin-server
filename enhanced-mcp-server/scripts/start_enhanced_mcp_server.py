@@ -67,11 +67,8 @@ async def main():
         # Keep the server running
         try:
             # This would normally start the MCP server
-            # For now, we'll just keep the process alive
-            logger.info("Server is running. Press Ctrl+C to stop.")
-            while True:
-                await asyncio.sleep(1)
-                
+            await mcp_server.run(transport='stdio')
+            
         except KeyboardInterrupt:
             logger.info("Received shutdown signal")
             
