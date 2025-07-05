@@ -416,10 +416,10 @@ def test_resume_upload_empty_file():
     assert not data.get("success", False)
 
 def test_resume_upload_unsupported_format():
-    """Test uploading an unsupported file format like .zip"""
-    logger.info("🚫 Testing unsupported ZIP file upload...")
-    zip_content = base64.b64encode(b'ZIP FILE CONTENT').decode()
-    payload = {"filename": "resume.zip", "content": zip_content}
+    """Test uploading an unsupported DOC file"""
+    logger.info("🚫 Testing unsupported DOC file upload...")
+    doc_content = base64.b64encode(b'DOC FILE CONTENT').decode()
+    payload = {"filename": "resume.doc", "content": doc_content}
     response = requests.post(f"{BASE_URL}/api/resume/upload", json=payload)
     if response.status_code not in [400, 422]:
         print(f"Response: {response.status_code}, Body: {response.text}")

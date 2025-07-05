@@ -17,7 +17,7 @@ from pathlib import Path
 # Add current directory to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, File, UploadFile, Body
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, File, UploadFile, Body, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
@@ -638,75 +638,34 @@ async def get_credentials(db: DatabaseManager = Depends(get_db_manager)):
 
 # Add /api/resume/upload endpoint
 @app.post("/api/resume/upload")
-async def upload_resume(request: ResumeUploadRequest, user: dict = Depends(get_current_user), db: DatabaseManager = Depends(get_db_manager)):
+async def upload_resume(request: ResumeUploadRequest, db: DatabaseManager = Depends(get_db_manager)):
     try:
-        # Validate file type
-        allowed_extensions = {'.pdf', '.doc', '.docx', '.txt'}
-        file_ext = Path(request.filename).suffix.lower()
-        if file_ext not in allowed_extensions:
-            return JSONResponse(status_code=400, content={"success": False, "detail": f"File type {file_ext} not supported."})
-
-        resume_dir = Path("resumes")
-        resume_dir.mkdir(exist_ok=True)
-        
-        # Generate a unique filename to prevent overwrites
-        resume_id = str(uuid.uuid4())
-        new_filename = f"{resume_id}{file_ext}"
-        file_path = resume_dir / new_filename
-
+        # Only allow PDF files
+        if not request.filename.lower().endswith('.pdf'):
+            return JSONResponse(status_code=400, content={"success": False, "message": "Only PDF resumes are supported", "path": "", "filename": request.filename, "word_count": 0})
+        resume_dir = os.path.join(os.getcwd(), "resumes")
+        os.makedirs(resume_dir, exist_ok=True)
+        file_path = os.path.join(resume_dir, request.filename)
         try:
             content_bytes = base64.b64decode(request.content)
-        except (TypeError, ValueError):
-            raise HTTPException(status_code=400, detail="Invalid base64 content.")
-
-        if not content_bytes:
-            raise HTTPException(status_code=400, detail="Empty file uploaded.")
-
+        except Exception:
+            return JSONResponse(status_code=400, content={"success": False, "message": "Invalid base64 content", "path": "", "filename": request.filename, "word_count": 0})
+        if not content_bytes or len(content_bytes) == 0:
+            return JSONResponse(status_code=400, content={"success": False, "message": "Empty file uploaded", "path": "", "filename": request.filename, "word_count": 0})
         with open(file_path, "wb") as f:
             f.write(content_bytes)
-
-        # Word count - simple logic for text, placeholder for binary
-        word_count = 0
-        if file_ext == '.txt':
-            try:
-                word_count = len(content_bytes.decode('utf-8').split())
-            except UnicodeDecodeError:
-                word_count = -1 # Or some other indicator of non-text content
-        else:
-            # For .pdf, .doc, .docx, a more advanced parser is needed.
-            # For now, we can estimate based on size or return 0.
-            word_count = len(content_bytes) // 5  # Rough estimate
-
-        # Save resume info to database
-        # This part might need a new DB function if one doesn't exist to store resume metadata
-        # For now, we assume we update the user's profile with the new resume path.
-        # Note: The original `save_resume_path` only saved the path. We enhance this.
-        
-        user_id = user['id']
-        # Let's assume a function `add_user_resume` exists or needs to be created
-        # db.add_user_resume(user_id, resume_id, new_filename, str(file_path), word_count)
-        
-        # For now, let's update the user's resume_url field as a fallback
-        db.update_user(username=user['username'], resume_url=str(file_path))
-        
-        upload_date = datetime.now().isoformat()
-
-        return JSONResponse(status_code=200, content={
-            "success": True,
-            "resume_id": resume_id,
-            "filename": request.filename,
-            "upload_date": upload_date,
-            "content": request.content,  # Return base64 content back to FE
-            "word_count": word_count,
-            "message": "Resume uploaded successfully"
-        })
-
-    except HTTPException as he:
-        # Re-raise HTTPExceptions to let FastAPI handle them
-        raise he
+        # Count words (dummy logic for now)
+        word_count = len(content_bytes.split())
+        username = db.get_setting("linkedin_username")
+        if not username:
+            return JSONResponse(status_code=400, content={"success": False, "message": "No username found for saving resume path", "path": "", "filename": request.filename, "word_count": word_count})
+        save_result = db.save_resume_path(username, file_path)
+        if not save_result:
+            return JSONResponse(status_code=500, content={"success": False, "message": "Failed to save resume path to user profile", "path": file_path, "filename": request.filename, "word_count": word_count})
+        return JSONResponse(status_code=200, content={"success": True, "message": "Resume uploaded successfully", "path": file_path, "filename": request.filename, "word_count": word_count})
     except Exception as e:
         logger.error(f"Error uploading resume: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse(status_code=500, content={"success": False, "message": str(e), "path": "", "filename": getattr(request, 'filename', ''), "word_count": 0})
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8001, log_level="info") 
