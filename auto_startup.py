@@ -14,6 +14,10 @@ import signal
 from pathlib import Path
 from typing import List, Optional, Tuple
 import logging
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+import threading
+import shutil
 
 # Configure logging
 logging.basicConfig(
@@ -96,22 +100,32 @@ class AutoStartup:
     def check_node_installation(self) -> bool:
         """Check if Node.js and npm are installed"""
         try:
-            # Check Node.js
-            result = subprocess.run(['node', '--version'], capture_output=True, text=True, timeout=10)
-            if result.returncode != 0:
-                logger.error("Node.js not found. Please install Node.js from https://nodejs.org/")
+            node_path = shutil.which('node')
+            npm_path = shutil.which('npm')
+            logger.info(f"PATH: {os.environ.get('PATH')}")
+            logger.info(f"node path: {node_path}")
+            logger.info(f"npm path: {npm_path}")
+            # Try node -v
+            node_ok = False
+            npm_ok = False
+            if node_path:
+                result = subprocess.run([node_path, '--version'], capture_output=True, text=True, timeout=10)
+                logger.info(f"node -v output: {result.stdout.strip()} (rc={result.returncode})")
+                node_ok = result.returncode == 0
+            if npm_path:
+                result = subprocess.run([npm_path, '--version'], capture_output=True, text=True, timeout=10)
+                logger.info(f"npm -v output: {result.stdout.strip()} (rc={result.returncode})")
+                npm_ok = result.returncode == 0
+            if node_ok and npm_ok:
+                logger.info("Node.js and npm are properly installed and available in PATH.")
+                return True
+            else:
+                logger.error("Node.js or npm not found or not working. Please check your PATH and try opening a new terminal window.")
+                logger.error(f"PATH: {os.environ.get('PATH')}")
                 return False
-            
-            # Check npm
-            result = subprocess.run(['npm', '--version'], capture_output=True, text=True, timeout=10)
-            if result.returncode != 0:
-                logger.error("npm not found. Please install npm or update Node.js")
-                return False
-            
-            logger.info("Node.js and npm are properly installed")
-            return True
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            logger.error("Node.js or npm not found. Please install Node.js from https://nodejs.org/")
+        except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
+            logger.error(f"Node.js or npm not found. Please install Node.js from https://nodejs.org/ or check your PATH. Error: {e}")
+            logger.error(f"PATH: {os.environ.get('PATH')}")
             return False
 
     def install_npm_dependencies(self) -> bool:
@@ -244,6 +258,35 @@ class AutoStartup:
                 except Exception as e:
                     logger.error(f"Error terminating {service_name}: {e}")
     
+    def restart_api_bridge(self):
+        """Gracefully restart the API bridge process"""
+        svc = self.services['api_bridge']
+        proc = svc.get('process')
+        if proc and proc.poll() is None:
+            logger.info("[Auto] Stopping API bridge for restart...")
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except Exception:
+                proc.kill()
+        # Start new process
+        logger.info("[Auto] Restarting API bridge...")
+        new_proc = subprocess.Popen([sys.executable, svc['script']], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        svc['process'] = new_proc
+        # Wait for service to be ready
+        if self.wait_for_service(f"http://localhost:{svc['port']}/health", timeout=30):
+            logger.info("[Auto] API bridge restarted successfully.")
+        else:
+            logger.error("[Auto] API bridge failed to restart.")
+
+    def run_resume_upload_tests(self):
+        logger.info("[Auto] Running resume upload tests...")
+        result = subprocess.run([sys.executable, "test_resume_upload.py"])
+        if result.returncode == 0:
+            logger.info("[Auto] ✅ All resume upload tests passed.")
+        else:
+            logger.error("[Auto] ❌ Some resume upload tests failed.")
+
     def run(self):
         """Main startup sequence"""
         try:
@@ -324,6 +367,34 @@ class AutoStartup:
         finally:
             self.cleanup_on_exit()
 
+# Backend file watcher
+class BackendChangeHandler(FileSystemEventHandler):
+    def __init__(self, restart_api_bridge, run_tests):
+        self.restart_api_bridge = restart_api_bridge
+        self.run_tests = run_tests
+
+    def on_modified(self, event):
+        if event.is_directory:
+            return
+        path_str = str(event.src_path)
+        if path_str.endswith('.py'):
+            logger.info(f"[Auto] Detected change in {event.src_path}, restarting API bridge and running tests...")
+            self.restart_api_bridge()
+            self.run_tests()
+
+def watch_backend_and_test(restart_api_bridge, run_tests):
+    event_handler = BackendChangeHandler(restart_api_bridge, run_tests)
+    observer = Observer()
+    observer.schedule(event_handler, path='.', recursive=True)
+    observer.start()
+    logger.info("[Auto] Watching for backend code changes. Press Ctrl+C to stop.")
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        observer.stop()
+    observer.join()
+
 def main():
     """Main entry point"""
     startup = AutoStartup()
@@ -337,8 +408,20 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
-    success = startup.run()
-    sys.exit(0 if success else 1)
+    startup.run()  # This starts all services as before
+
+    # Start backend watcher in a background thread
+    watch_thread = threading.Thread(target=watch_backend_and_test, args=(startup.restart_api_bridge, startup.run_resume_upload_tests))
+    watch_thread.daemon = True
+    watch_thread.start()
+
+    # Keep main thread alive
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        logger.info("[Auto] Shutting down...")
+        startup.cleanup_on_exit()
 
 if __name__ == "__main__":
     main() 
