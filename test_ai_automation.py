@@ -52,19 +52,52 @@ async def test_ai_automation():
     print("\n3. Testing resume management...")
     try:
         resume_manager = automation.resume_manager
-        resumes = resume_manager.list_resumes()
-        print(f"✅ Resume manager working - {len(resumes)} resumes found")
         
-        # Test resume upload (if we have a test file)
-        test_resume_path = "test_resume.pdf"
-        if os.path.exists(test_resume_path):
-            success = resume_manager.upload_resume(test_resume_path, "test_resume")
-            if success:
-                print("✅ Test resume uploaded successfully")
+        # Ensure a clean state for testing
+        test_resume_name = "test_resume"
+        test_resume_filename = f"{test_resume_name}.pdf"
+        test_resume_src_path = "test_resume.pdf"
+        
+        # Create a dummy test resume if it doesn't exist
+        if not os.path.exists(test_resume_src_path):
+            print(f"ℹ️  Creating dummy resume file: {test_resume_src_path}")
+            with open(test_resume_src_path, "w") as f:
+                f.write("This is a test resume.")
+        
+        # Clean up any previous test resume from the resumes directory
+        if resume_manager.get_resume_path(test_resume_name):
+            print(f"ℹ️  Cleaning up previous test resume: {test_resume_filename}")
+            resume_manager.delete_resume(test_resume_name)
+
+        resumes = resume_manager.list_resumes()
+        print(f"✅ Resume manager working - {len(resumes)} resumes found initially")
+        
+        # Test resume upload
+        success = resume_manager.upload_resume(test_resume_src_path, test_resume_name)
+        if success:
+            print("✅ Test resume uploaded successfully")
+            
+            # Verify it's in the list
+            resumes = resume_manager.list_resumes()
+            if any(r['name'] == test_resume_name for r in resumes):
+                print("✅ Uploaded resume found in list")
             else:
-                print("⚠️  Test resume upload failed")
+                print("❌ Uploaded resume NOT found in list")
+            
+            # Test resume deletion
+            success_delete = resume_manager.delete_resume(test_resume_name)
+            if success_delete:
+                print("✅ Test resume deleted successfully")
+                resumes = resume_manager.list_resumes()
+                if not any(r['name'] == test_resume_name for r in resumes):
+                    print("✅ Deleted resume is no longer in the list")
+                else:
+                    print("❌ Deleted resume still found in list")
+            else:
+                print("❌ Test resume deletion failed")
         else:
-            print("ℹ️  No test resume file found, skipping upload test")
+            print("❌ Test resume upload failed")
+
     except Exception as e:
         print(f"❌ Resume management test failed: {e}")
     
