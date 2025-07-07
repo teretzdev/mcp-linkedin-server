@@ -10,6 +10,7 @@ import logging
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
+from centralized_logging import get_logger
 
 # Set up logging to stderr only
 logging.basicConfig(
@@ -18,7 +19,7 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stderr)]
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger("linkedin_browser_mcp")
 logger.setLevel(logging.DEBUG)
 
 def setup_sessions_directory():
@@ -28,19 +29,19 @@ def setup_sessions_directory():
         sessions_dir.mkdir(mode=0o777, parents=True, exist_ok=True)
         # Ensure the directory has the correct permissions even if it already existed
         os.chmod(sessions_dir, 0o777)
-        logger.debug(f"Sessions directory set up at {sessions_dir} with full permissions")
+        logger.log_debug(f"Sessions directory set up at {sessions_dir} with full permissions")
         return True
     except Exception as e:
-        logger.error(f"Failed to set up sessions directory: {str(e)}")
+        logger.log_error(f"Failed to set up sessions directory: {str(e)}")
         return False
 
 # Load environment variables
 env_path = Path(__file__).parent / '.env'
 if env_path.exists():
     load_dotenv(env_path)
-    logger.debug(f"Loaded environment from {env_path}")
+    logger.log_debug(f"Loaded environment from {env_path}")
 else:
-    logger.warning(f"No .env file found at {env_path}")
+    logger.log_warning(f"No .env file found at {env_path}")
 
 # Create MCP server with required dependencies
 mcp = FastMCP(
@@ -60,26 +61,26 @@ def report_progress(ctx, current, total, message=None):
         progress = min(1.0, current / total) if total > 0 else 0
         if message:
             ctx.info(message)
-        logger.debug(f"Progress: {progress:.2%} - {message if message else ''}")
+        logger.log_debug(f"Progress: {progress:.2%} - {message if message else ''}")
     except Exception as e:
-        logger.error(f"Error reporting progress: {str(e)}")
+        logger.log_error(f"Error reporting progress: {str(e)}")
 
 def handle_notification(ctx, notification_type, params=None):
     """Helper function to handle notifications with proper validation"""
     try:
         if notification_type == "initialized":
-            logger.info("MCP Server initialized")
+            logger.log_info("MCP Server initialized")
             if ctx:  # Only call ctx.info if ctx is provided
                 ctx.info("Server initialized and ready")
         elif notification_type == "cancelled":
             reason = params.get("reason", "Unknown reason")
-            logger.warning(f"Operation cancelled: {reason}")
+            logger.log_warning(f"Operation cancelled: {reason}")
             if ctx:
                 ctx.warning(f"Operation cancelled: {reason}")
         else:
-            logger.debug(f"Notification: {notification_type} - {params}")
+            logger.log_debug(f"Notification: {notification_type} - {params}")
     except Exception as e:
-        logger.error(f"Error handling notification: {str(e)}")
+        logger.log_error(f"Error handling notification: {str(e)}", e)
 
 # Helper to save cookies between sessions
 async def save_cookies(page, platform):
@@ -151,7 +152,7 @@ class BrowserSession:
     """Context manager for browser sessions with cookie persistence"""
     
     def __init__(self, platform='linkedin', headless=True, launch_timeout=30000, max_retries=3):
-        logger.info(f"Initializing {platform} browser session (headless: {headless})")
+        logger.log_info(f"Initializing {platform} browser session (headless: {headless})")
         self.platform = platform
         self.headless = headless
         self.launch_timeout = launch_timeout
@@ -171,7 +172,7 @@ class BrowserSession:
         
         while retry_count < self.max_retries and not self._closed:
             try:
-                logger.info(f"Starting Playwright (attempt {retry_count + 1}/{self.max_retries})")
+                logger.log_info(f"Starting Playwright (attempt {retry_count + 1}/{self.max_retries})")
                 
                 # Ensure clean state
                 await self._cleanup()
@@ -186,7 +187,7 @@ class BrowserSession:
                 launch_success = False
                 for attempt in range(3):
                     try:
-                        logger.info(f"Launching browser (sub-attempt {attempt + 1}/3)")
+                        logger.log_info(f"Launching browser (sub-attempt {attempt + 1}/3)")
                         self.browser = await self.playwright.chromium.launch(
                             headless=self.headless,
                             timeout=self.launch_timeout,
@@ -200,28 +201,28 @@ class BrowserSession:
                         launch_success = True
                         break
                     except Exception as e:
-                        logger.error(f"Browser launch sub-attempt {attempt + 1} failed: {str(e)}")
+                        logger.log_error(f"Browser launch sub-attempt {attempt + 1} failed: {str(e)}")
                         await asyncio.sleep(2)  # Increased delay between attempts
                 
                 if not launch_success:
                     raise Exception("Failed to launch browser after 3 attempts")
                 
-                logger.info("Creating browser context")
+                logger.log_info("Creating browser context")
                 self.context = await self.browser.new_context(
                     viewport={'width': 1280, 'height': 800},
                     user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36'
                 )
                 
                 # Try to load existing session
-                logger.info("Attempting to load existing session")
+                logger.log_info("Attempting to load existing session")
                 try:
                     session_loaded = await load_cookies(self.context, self.platform)
                     if session_loaded:
-                        logger.info("Existing session loaded successfully")
+                        logger.log_info("Existing session loaded successfully")
                     else:
-                        logger.info("No existing session found or session expired")
+                        logger.log_info("No existing session found or session expired")
                 except Exception as cookie_error:
-                    logger.warning(f"Error loading cookies: {str(cookie_error)}")
+                    logger.log_warning(f"Error loading cookies: {str(cookie_error)}")
                     # Continue even if cookie loading fails
                 
                 return self
@@ -229,7 +230,7 @@ class BrowserSession:
             except Exception as e:
                 last_error = e
                 retry_count += 1
-                logger.error(f"Browser session initialization attempt {retry_count} failed: {str(e)}")
+                logger.log_error(f"Browser session initialization attempt {retry_count} failed: {str(e)}")
                 
                 # Cleanup on failure
                 await self._cleanup()
@@ -237,7 +238,7 @@ class BrowserSession:
                 if retry_count < self.max_retries and not self._closed:
                     await asyncio.sleep(2 * retry_count)  # Exponential backoff
                 else:
-                    logger.error("All browser session initialization attempts failed")
+                    logger.log_error("All browser session initialization attempts failed")
                     raise Exception(f"Failed to initialize browser after {self.max_retries} attempts. Last error: {str(last_error)}")
 
     async def _cleanup(self):
@@ -246,18 +247,18 @@ class BrowserSession:
             try:
                 await self.browser.close()
             except Exception as e:
-                logger.error(f"Error closing browser: {str(e)}")
+                logger.log_error(f"Error closing browser: {str(e)}")
         if self.playwright:
             try:
                 await self.playwright.stop()
             except Exception as e:
-                logger.error(f"Error stopping playwright: {str(e)}")
+                logger.log_error(f"Error stopping playwright: {str(e)}")
         self.browser = None
         self.playwright = None
         self.context = None
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        logger.info("Closing browser session")
+        logger.log_info("Closing browser session")
         self._closed = True
         await self._cleanup()
         
@@ -270,7 +271,7 @@ class BrowserSession:
             try:
                 await page.goto(url, wait_until='networkidle', timeout=30000)
             except Exception as e:
-                logger.error(f"Error navigating to {url}: {str(e)}")
+                logger.log_error(f"Error navigating to {url}: {str(e)}")
                 raise
         return page
         
@@ -281,12 +282,12 @@ class BrowserSession:
         try:
             await save_cookies(page, self.platform)
         except Exception as e:
-            logger.error(f"Error saving session: {str(e)}")
+            logger.log_error(f"Error saving session: {str(e)}")
             raise
 
 async def _login_linkedin(username: str | None = None, password: str | None = None, ctx: Context | None = None) -> dict:
     """Business logic for LinkedIn login (undecorated, for testing)"""
-    logger.info("Starting LinkedIn login process")
+    logger.log_info("Starting LinkedIn login process")
     
     # Validate email format if provided
     if username and '@' not in username:
@@ -305,7 +306,7 @@ async def login_linkedin(username: str | None = None, password: str | None = Non
 
 async def _login_linkedin_secure(ctx: Context | None = None) -> dict:
     """Business logic for secure LinkedIn login (undecorated, for testing)"""
-    logger.info("Starting secure LinkedIn login")
+    logger.log_info("Starting secure LinkedIn login")
     username = os.getenv('LINKEDIN_USERNAME', '').strip()
     password = os.getenv('LINKEDIN_PASSWORD', '').strip()
     
@@ -808,7 +809,7 @@ async def save_applied_job_tracking(job_url: str, page):
                 json.dump(applied_jobs, f, indent=2)
                 
     except Exception as e:
-        logger.error(f"Failed to save applied job tracking: {str(e)}")
+        logger.log_error(f"Failed to save applied job tracking: {str(e)}")
 
 async def save_saved_job_tracking(job_url: str, page):
     """Save saved job to local tracking"""
@@ -841,7 +842,7 @@ async def save_saved_job_tracking(job_url: str, page):
                 json.dump(saved_jobs, f, indent=2)
                 
     except Exception as e:
-        logger.error(f"Failed to save saved job tracking: {str(e)}")
+        logger.log_error(f"Failed to save saved job tracking: {str(e)}")
 
 @mcp.tool()
 async def list_applied_jobs(ctx: Context) -> dict:
@@ -1134,7 +1135,7 @@ async def get_application_analytics(ctx: Context) -> dict:
 
 if __name__ == "__main__":
     try:
-        logger.debug("Starting LinkedIn MCP Server with debug logging")
+        logger.log_debug("Starting LinkedIn MCP Server with debug logging")
         
         # Initialize MCP server with simple configuration
         try:
@@ -1142,13 +1143,13 @@ if __name__ == "__main__":
             mcp.run(transport='stdio')
         except KeyboardInterrupt:
             handle_notification(None, "cancelled", {"reason": "Server stopped by user"})
-            logger.info("Server stopped by user")
+            logger.log_info("Server stopped by user")
         except Exception as e:
             handle_notification(None, "cancelled", {"reason": str(e)})
-            logger.error(f"Server error: {str(e)}", exc_info=True)
+            logger.log_error(f"Server error: {str(e)}", exc_info=True)
             sys.exit(1)
             
     except Exception as e:
-        logger.error(f"Startup error: {str(e)}", exc_info=True)
+        logger.log_error(f"Startup error: {str(e)}", exc_info=True)
         sys.exit(1)
         

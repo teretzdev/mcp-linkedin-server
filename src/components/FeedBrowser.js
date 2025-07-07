@@ -1,184 +1,202 @@
-import React, { useState } from 'react';
-import { Activity, Eye, Heart, MessageCircle, Share, Loader2, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, RefreshCw, Heart, MessageCircle, Share2, User } from 'lucide-react';
 import axios from 'axios';
 
-const FeedBrowser = () => {
-  const [count, setCount] = useState(5);
-  const [loading, setLoading] = useState(false);
-  const [posts, setPosts] = useState([]);
-  const [error, setError] = useState('');
+function FeedBrowser() {
+  const [feedPosts, setFeedPosts] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredPosts, setFilteredPosts] = useState([]);
 
-  const handleBrowseFeed = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    setPosts([]);
+  useEffect(() => {
+    fetchFeed();
+  }, []);
 
+  useEffect(() => {
+    filterPosts();
+  }, [feedPosts, searchQuery]);
+
+  const fetchFeed = async () => {
+    setIsLoading(true);
     try {
-      const response = await axios.post('/api/browse_linkedin_feed', {
-        count: parseInt(count)
-      });
-      setPosts(response.data.posts || []);
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to browse feed. Please try again.');
+      const response = await axios.get('/api/linkedin_feed');
+      setFeedPosts(response.data.posts || []);
+    } catch (error) {
+      console.error('Failed to fetch feed:', error);
+      setFeedPosts([]);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const handleRefresh = () => {
-    if (!loading) {
-      handleBrowseFeed({ preventDefault: () => {} });
+  const filterPosts = () => {
+    if (!searchQuery.trim()) {
+      setFilteredPosts(feedPosts);
+      return;
+    }
+
+    const filtered = feedPosts.filter(post =>
+      post.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      post.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      post.company?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    setFilteredPosts(filtered);
+  };
+
+  const handleInteraction = async (postId, interactionType) => {
+    try {
+      await axios.post('/api/interact_with_post', {
+        post_id: postId,
+        interaction_type: interactionType
+      });
+      // Update local state to reflect the interaction
+      setFeedPosts(prev => prev.map(post => 
+        post.id === postId 
+          ? { ...post, [interactionType]: (post[interactionType] || 0) + 1 }
+          : post
+      ));
+    } catch (error) {
+      console.error('Interaction failed:', error);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Feed Browser</h1>
-        <p className="text-gray-600">
-          Browse and view posts from your LinkedIn feed
-        </p>
-      </div>
-
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <form onSubmit={handleBrowseFeed} className="space-y-4">
-          <div className="flex items-end space-x-4">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Number of Posts
-              </label>
-              <select
-                value={count}
-                onChange={(e) => setCount(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-linkedin-500 focus:border-linkedin-500"
-              >
-                <option value={5}>5 posts</option>
-                <option value={10}>10 posts</option>
-                <option value={15}>15 posts</option>
-                <option value={20}>20 posts</option>
-              </select>
-            </div>
-            
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex items-center justify-center space-x-2 px-6 py-2 bg-linkedin-600 text-white rounded-lg hover:bg-linkedin-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Activity className="w-5 h-5" />
-              )}
-              <span>{loading ? 'Loading...' : 'Browse Feed'}</span>
-            </button>
-
-            {posts.length > 0 && (
-              <button
-                type="button"
-                onClick={handleRefresh}
-                disabled={loading}
-                className="flex items-center justify-center space-x-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
-              >
-                <RefreshCw className="w-4 h-4" />
-                <span>Refresh</span>
-              </button>
-            )}
+    <div className="container container-lg">
+      <div className="p-xl">
+        <div className="card">
+          <div className="card-header">
+            <h1 className="text-2xl font-bold text-primary">Feed Browser</h1>
+            <p className="text-secondary">
+              Browse and interact with LinkedIn feed posts
+            </p>
           </div>
-        </form>
-      </div>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{error}</p>
-        </div>
-      )}
-
-      {posts.length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            Feed Posts ({posts.length})
-          </h2>
-          <div className="space-y-4">
-            {posts.map((post, index) => (
-              <div key={index} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-start space-x-3">
-                  <div className="w-10 h-10 bg-linkedin-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Activity className="w-5 h-5 text-linkedin-600" />
+          
+          <div className="card-body">
+            {/* Search and Controls */}
+            <div className="card mb-lg">
+              <div className="card-body">
+                <div className="flex flex-col md:flex-row gap-md">
+                  <div className="flex-1">
+                    <label className="form-label">Search Posts</label>
+                    <div className="relative">
+                      <Search className="absolute left-md top-1/2 transform -translate-y-1/2 w-5 h-5 text-tertiary" />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search posts, authors, or companies..."
+                        className="form-input pl-xl"
+                      />
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <h3 className="font-medium text-gray-900">
-                        {post.author || 'Unknown Author'}
-                      </h3>
-                      {post.timestamp && (
-                        <span className="text-xs text-gray-500">
-                          {new Date(post.timestamp).toLocaleDateString()}
-                        </span>
-                      )}
-                    </div>
-                    
-                    {post.content && (
-                      <p className="text-gray-700 mb-3 line-clamp-3">
-                        {post.content}
-                      </p>
-                    )}
-
-                    <div className="flex items-center space-x-4 text-sm text-gray-500">
-                      {post.likes && (
-                        <div className="flex items-center space-x-1">
-                          <Heart className="w-4 h-4" />
-                          <span>{post.likes}</span>
-                        </div>
-                      )}
-                      {post.comments && (
-                        <div className="flex items-center space-x-1">
-                          <MessageCircle className="w-4 h-4" />
-                          <span>{post.comments}</span>
-                        </div>
-                      )}
-                      {post.shares && (
-                        <div className="flex items-center space-x-1">
-                          <Share className="w-4 h-4" />
-                          <span>{post.shares}</span>
-                        </div>
-                      )}
-                      {post.views && (
-                        <div className="flex items-center space-x-1">
-                          <Eye className="w-4 h-4" />
-                          <span>{post.views}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {post.url && (
-                      <a
-                        href={post.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center space-x-1 mt-2 text-xs text-linkedin-600 hover:text-linkedin-700"
-                      >
-                        <span>View Original Post</span>
-                      </a>
-                    )}
+                  <div className="flex items-end">
+                    <button
+                      onClick={fetchFeed}
+                      disabled={isLoading}
+                      className="btn btn-secondary flex items-center gap-sm"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                      {isLoading ? 'Loading...' : 'Refresh Feed'}
+                    </button>
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+            </div>
 
-      {loading && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-center space-x-2">
-            <Loader2 className="w-6 h-6 animate-spin text-linkedin-600" />
-            <span className="text-gray-600">Loading LinkedIn feed...</span>
+            {/* Feed Posts */}
+            {filteredPosts.length > 0 && (
+              <div className="card">
+                <div className="card-header">
+                  <h2 className="text-xl font-semibold text-primary">
+                    Feed Posts ({filteredPosts.length})
+                  </h2>
+                </div>
+                <div className="card-body">
+                  <div className="space-y-lg">
+                    {filteredPosts.map((post, index) => (
+                      <div key={index} className="card">
+                        <div className="card-body">
+                          {/* Post Header */}
+                          <div className="flex items-start gap-md mb-md">
+                            <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
+                              {post.author?.charAt(0) || 'U'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-medium text-primary">
+                                {post.author || 'Unknown Author'}
+                              </h3>
+                              <span className="text-xs text-tertiary">
+                                {post.timestamp || 'Unknown time'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Post Content */}
+                          <p className="text-primary mb-md line-clamp-3">
+                            {post.content || 'No content available'}
+                          </p>
+
+                          {/* Post Stats */}
+                          <div className="flex items-center gap-lg text-sm text-tertiary mb-md">
+                            <span>{post.likes || 0} likes</span>
+                            <span>{post.comments || 0} comments</span>
+                            <span>{post.shares || 0} shares</span>
+                          </div>
+
+                          {/* Interaction Buttons */}
+                          <div className="flex gap-sm">
+                            <button
+                              onClick={() => handleInteraction(post.id, 'likes')}
+                              className="btn btn-secondary btn-sm flex items-center gap-xs"
+                            >
+                              <Heart className="w-4 h-4" />
+                              Like
+                            </button>
+                            <button
+                              onClick={() => handleInteraction(post.id, 'comments')}
+                              className="btn btn-secondary btn-sm flex items-center gap-xs"
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                              Comment
+                            </button>
+                            <button
+                              onClick={() => handleInteraction(post.id, 'shares')}
+                              className="btn btn-secondary btn-sm flex items-center gap-xs"
+                            >
+                              <Share2 className="w-4 h-4" />
+                              Share
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Loading State */}
+            {isLoading && (
+              <div className="card">
+                <div className="card-body text-center py-xl">
+                  <span className="text-secondary">Loading LinkedIn feed...</span>
+                </div>
+              </div>
+            )}
+
+            {/* Empty State */}
+            {!isLoading && filteredPosts.length === 0 && searchQuery && (
+              <div className="card">
+                <div className="card-body text-center py-xl">
+                  <span className="text-secondary">No posts found matching your search.</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
-};
+}
 
 export default FeedBrowser; 

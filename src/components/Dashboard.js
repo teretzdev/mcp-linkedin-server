@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import './Dashboard.css';
 import { 
   Search, 
   Briefcase, 
@@ -13,7 +14,17 @@ import {
   Star,
   Activity,
   Zap,
-  Target
+  Target,
+  Play,
+  Pause,
+  RotateCcw,
+  XCircle,
+  CheckSquare,
+  Square,
+  AlertCircle,
+  Info,
+  ExternalLink,
+  ChevronDown
 } from 'lucide-react';
 
 function Dashboard({ isLoggedIn, serverStatus }) {
@@ -30,300 +41,663 @@ function Dashboard({ isLoggedIn, serverStatus }) {
       title: 'Start Job Search',
       description: 'Find new opportunities',
       icon: Search,
-      link: '/job-search',
-      color: 'bg-blue-500'
+      href: '/job-search',
+      color: 'blue'
     },
     {
-      title: 'Resume Manager',
-      description: 'Optimize your resume',
-      icon: FileText,
-      link: '/resume-manager',
-      color: 'bg-green-500'
-    },
-    {
-      title: 'Easy Apply Assistant',
-      description: 'AI-powered applications',
-      icon: Zap,
-      link: '/easy-apply',
-      color: 'bg-purple-500'
-    },
-    {
-      title: 'Analytics',
+      title: 'View Applications',
       description: 'Track your progress',
-      icon: TrendingUp,
-      link: '/analytics',
-      color: 'bg-orange-500'
+      icon: Briefcase,
+      href: '/applications',
+      color: 'green'
+    },
+    {
+      title: 'Saved Jobs',
+      description: 'Review your favorites',
+      icon: FileText,
+      href: '/saved-jobs',
+      color: 'purple'
+    },
+    {
+      title: 'AI Automation',
+      description: 'Let AI help you',
+      icon: Zap,
+      href: '/ai-automation',
+      color: 'orange'
     }
   ]);
 
   const [profile, setProfile] = useState(null);
+  const [aiSuggestions, setAiSuggestions] = useState([]);
+
+  // Automation state
+  const [automationStatus, setAutomationStatus] = useState('idle');
+  const [automationStats, setAutomationStats] = useState({
+    jobsFound: 0,
+    jobsApplied: 0,
+    jobsSaved: 0,
+    connectionsMade: 0,
+    messagesSent: 0,
+    interviewsScheduled: 0,
+    lastRun: null
+  });
+
+  // Setup checklist state
+  const [setupChecklist, setSetupChecklist] = useState([
+    {
+      id: 'linkedin-login',
+      title: 'LinkedIn Account Setup',
+      description: 'Ensure you\'re logged into LinkedIn',
+      completed: false,
+      required: true,
+      priority: 'critical',
+      action: 'Go to LinkedIn and verify login',
+      link: 'https://linkedin.com'
+    },
+    {
+      id: 'profile-complete',
+      title: 'Complete LinkedIn Profile',
+      description: 'Fill out all profile sections (experience, skills, education)',
+      completed: false,
+      required: true,
+      priority: 'critical',
+      action: 'Update your LinkedIn profile',
+      link: 'https://linkedin.com/in/me'
+    },
+    {
+      id: 'resume-upload',
+      title: 'Upload Resume',
+      description: 'Add your resume to the system for AI optimization',
+      completed: false,
+      required: true,
+      priority: 'high',
+      action: 'Upload resume in Resume Manager',
+      link: '/resume-manager'
+    },
+    {
+      id: 'job-preferences',
+      title: 'Set Job Preferences',
+      description: 'Configure your job search criteria and preferences',
+      completed: false,
+      required: true,
+      priority: 'high',
+      action: 'Configure job preferences',
+      link: '/job-search'
+    },
+    {
+      id: 'automation-settings',
+      title: 'Configure Automation Settings',
+      description: 'Set up automation parameters and safety limits',
+      completed: false,
+      required: true,
+      priority: 'high',
+      action: 'Configure automation settings',
+      link: '/job-search'
+    },
+    {
+      id: 'message-templates',
+      title: 'Create Message Templates',
+      description: 'Set up connection and follow-up message templates',
+      completed: false,
+      required: false,
+      priority: 'medium',
+      action: 'Create message templates',
+      link: '/job-search'
+    },
+    {
+      id: 'target-companies',
+      title: 'Define Target Companies',
+      description: 'List companies you want to work for',
+      completed: false,
+      required: false,
+      priority: 'medium',
+      action: 'Add target companies',
+      link: '/job-search'
+    },
+    {
+      id: 'salary-expectations',
+      title: 'Set Salary Expectations',
+      description: 'Define your target salary range',
+      completed: false,
+      required: false,
+      priority: 'medium',
+      action: 'Set salary expectations',
+      link: '/job-search'
+    },
+    {
+      id: 'network-strategy',
+      title: 'Plan Networking Strategy',
+      description: 'Define your networking approach and targets',
+      completed: false,
+      required: false,
+      priority: 'low',
+      action: 'Plan networking strategy',
+      link: '/job-search'
+    },
+    {
+      id: 'interview-prep',
+      title: 'Prepare for Interviews',
+      description: 'Set up interview preparation materials',
+      completed: false,
+      required: false,
+      priority: 'low',
+      action: 'Prepare interview materials',
+      link: '/job-search'
+    }
+  ]);
 
   useEffect(() => {
-    loadDashboardData();
-    fetchUserProfile();
+    fetchDashboardData();
+    fetchAutomationStatus();
+    checkSetupProgress();
   }, []);
 
-  const loadDashboardData = async () => {
+  const fetchDashboardData = async () => {
     try {
-      // Fetch jobs applied, jobs saved, and analytics in parallel
-      const [appliedRes, savedRes, analyticsRes] = await Promise.all([
-        axios.get('/api/list_applied_jobs'),
-        axios.get('/api/list_saved_jobs'),
-        axios.get('/api/application_analytics')
-      ]);
-      const appliedJobs = appliedRes.data.applied_jobs || [];
-      const savedJobs = savedRes.data.saved_jobs || [];
-      const analytics = analyticsRes.data.analytics || {};
-
-      // Aggregate stats
-      setStats({
-        jobsViewed: analytics.jobs_viewed || appliedJobs.length + savedJobs.length, // fallback if not available
-        jobsApplied: appliedJobs.length,
-        jobsSaved: savedJobs.length,
-        successRate: analytics.success_rate || 0
-      });
-
-      // Build recent activity from applied and saved jobs
-      const activity = [];
-      appliedJobs.slice(0, 5).forEach(job => {
-        activity.push({
-          id: `applied-${job.id}`,
-          type: 'application',
-          title: `Applied to ${job.title} at ${job.company}`,
-          time: job.date_applied ? new Date(job.date_applied).toLocaleString() : '',
-          status: job.status || 'applied'
-        });
-      });
-      savedJobs.slice(0, 5).forEach(job => {
-        activity.push({
-          id: `saved-${job.id}`,
-          type: 'saved',
-          title: `Saved ${job.title} at ${job.company}`,
-          time: job.date_saved ? new Date(job.date_saved).toLocaleString() : '',
-          status: 'saved'
-        });
-      });
-      // Sort by most recent
-      activity.sort((a, b) => new Date(b.time) - new Date(a.time));
-      setRecentActivity(activity.slice(0, 8));
-    } catch (error) {
-      console.error('Error loading dashboard data:', error);
-      // fallback to zeros if error
-      setStats({ jobsViewed: 0, jobsApplied: 0, jobsSaved: 0, successRate: 0 });
-      setRecentActivity([]);
-    }
-  };
-
-  const fetchUserProfile = async () => {
-    try {
-      const response = await fetch('/api/user/profile');
-      if (response.ok) {
-        setProfile(await response.json());
+      // Fetch user profile
+      const profileResponse = await axios.get('/api/user/profile');
+      if (profileResponse.data) {
+        setProfile(profileResponse.data);
       }
-    } catch (e) {
-      setProfile(null);
+
+      // Fetch stats
+      const statsResponse = await axios.get('/api/stats');
+      if (statsResponse.data) {
+        setStats(statsResponse.data);
+      }
+
+      // Fetch recent activity
+      const activityResponse = await axios.get('/api/activity');
+      if (activityResponse.data) {
+        setRecentActivity(activityResponse.data.slice(0, 5));
+      }
+
+      // Fetch AI recommendations
+      try {
+        const recommendationsResponse = await axios.get('/api/ai/recommendations');
+        if (recommendationsResponse.data) {
+          setAiSuggestions(recommendationsResponse.data.slice(0, 3));
+        }
+      } catch (error) {
+        console.log('AI recommendations not available');
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'connected':
-        return 'text-green-600';
-      case 'disconnected':
-        return 'text-red-600';
-      default:
-        return 'text-yellow-600';
+  const fetchAutomationStatus = async () => {
+    try {
+      const response = await axios.get('/api/automation/status');
+      if (response.data) {
+        setAutomationStatus(response.data.status);
+        setAutomationStats(response.data.stats || automationStats);
+      }
+    } catch (error) {
+      console.log('Automation status not available');
     }
   };
 
-  const getActivityIcon = (type) => {
-    switch (type) {
-      case 'application':
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case 'saved':
-        return <Star className="w-4 h-4 text-yellow-500" />;
-      case 'viewed':
-        return <Clock className="w-4 h-4 text-blue-500" />;
-      default:
-        return <Activity className="w-4 h-4 text-gray-500" />;
+  const checkSetupProgress = async () => {
+    try {
+      // Check if user is logged into LinkedIn
+      const linkedinStatus = await axios.get('/api/linkedin/status');
+      if (linkedinStatus.data.loggedIn) {
+        updateChecklistItem('linkedin-login', true);
+      }
+
+      // Check if profile is complete
+      const profileStatus = await axios.get('/api/linkedin/profile-status');
+      if (profileStatus.data.complete) {
+        updateChecklistItem('profile-complete', true);
+      }
+
+      // Check if resume is uploaded
+      const resumeStatus = await axios.get('/api/resume/status');
+      if (resumeStatus.data.uploaded) {
+        updateChecklistItem('resume-upload', true);
+      }
+
+      // Check if job preferences are set
+      const preferencesStatus = await axios.get('/api/preferences/status');
+      if (preferencesStatus.data.configured) {
+        updateChecklistItem('job-preferences', true);
+        updateChecklistItem('automation-settings', true);
+      }
+
+      // Check if message templates are created
+      const templatesStatus = await axios.get('/api/templates/status');
+      if (templatesStatus.data.created) {
+        updateChecklistItem('message-templates', true);
+      }
+
+      // Check if target companies are set
+      const companiesStatus = await axios.get('/api/companies/status');
+      if (companiesStatus.data.set) {
+        updateChecklistItem('target-companies', true);
+      }
+
+      // Check if salary expectations are set
+      const salaryStatus = await axios.get('/api/salary/status');
+      if (salaryStatus.data.set) {
+        updateChecklistItem('salary-expectations', true);
+      }
+
+    } catch (error) {
+      console.log('Setup progress check not available');
+    }
+  };
+
+  const updateChecklistItem = (id, completed) => {
+    setSetupChecklist(prev => prev.map(item => 
+      item.id === id ? { ...item, completed } : item
+    ));
+  };
+
+  const toggleChecklistItem = (id) => {
+    setSetupChecklist(prev => prev.map(item => 
+      item.id === id ? { ...item, completed: !item.completed } : item
+    ));
+  };
+
+  const getSetupProgress = () => {
+    const completed = setupChecklist.filter(item => item.completed).length;
+    const total = setupChecklist.length;
+    return Math.round((completed / total) * 100);
+  };
+
+  const getCriticalItems = () => {
+    return setupChecklist.filter(item => item.priority === 'critical' && !item.completed);
+  };
+
+  const getNextSteps = () => {
+    return setupChecklist.filter(item => !item.completed).slice(0, 3);
+  };
+
+  const handleStartAutomation = async () => {
+    try {
+      setAutomationStatus('running');
+      await axios.post('/api/automation/start');
+      setAutomationStats(prev => ({
+        ...prev,
+        lastRun: new Date().toISOString()
+      }));
+    } catch (error) {
+      console.error('Failed to start automation:', error);
+      setAutomationStatus('error');
+    }
+  };
+
+  const handleStopAutomation = async () => {
+    try {
+      await axios.post('/api/automation/stop');
+      setAutomationStatus('idle');
+    } catch (error) {
+      console.error('Failed to stop automation:', error);
+    }
+  };
+
+  const handlePauseAutomation = async () => {
+    try {
+      await axios.post('/api/automation/pause');
+      setAutomationStatus('paused');
+    } catch (error) {
+      console.error('Failed to pause automation:', error);
+    }
+  };
+
+  const handleResetAutomation = async () => {
+    try {
+      await axios.post('/api/automation/reset');
+      setAutomationStats({
+        jobsFound: 0,
+        jobsApplied: 0,
+        jobsSaved: 0,
+        connectionsMade: 0,
+        messagesSent: 0,
+        interviewsScheduled: 0,
+        lastRun: null
+      });
+      setAutomationStatus('idle');
+    } catch (error) {
+      console.error('Failed to reset automation:', error);
+    }
+  };
+
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case 'critical': return 'text-red-600 bg-red-50 border-red-200';
+      case 'high': return 'text-orange-600 bg-orange-50 border-orange-200';
+      case 'medium': return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+      case 'low': return 'text-blue-600 bg-blue-50 border-blue-200';
+      default: return 'text-gray-600 bg-gray-50 border-gray-200';
+    }
+  };
+
+  const getPriorityIcon = (priority) => {
+    switch (priority) {
+      case 'critical': return <AlertCircle className="w-4 h-4" />;
+      case 'high': return <AlertCircle className="w-4 h-4" />;
+      case 'medium': return <Info className="w-4 h-4" />;
+      case 'low': return <Info className="w-4 h-4" />;
+      default: return <Info className="w-4 h-4" />;
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            {profile?.name ? `Welcome, ${profile.name}!` : 'Dashboard'}
-          </h1>
-          <p className="text-gray-600">
-            {profile?.target_roles ? `Target Roles: ${Array.isArray(profile.target_roles) ? profile.target_roles.join(', ') : profile.target_roles}` : "Here's your job search overview."}
-          </p>
-        </div>
-        <div className="flex items-center space-x-2">
-          {profile?.avatar ? (
-            <img src={profile.avatar} alt="avatar" className="w-10 h-10 rounded-full object-cover" />
-          ) : (
-            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
-              <span className="text-white text-lg font-medium">{profile?.name?.charAt(0) || 'U'}</span>
-            </div>
-          )}
-          <div className={`w-3 h-3 rounded-full ${serverStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-          <span className={`text-sm font-medium ${getStatusColor(serverStatus)}`}>{serverStatus === 'connected' ? 'Connected' : 'Disconnected'}</span>
-        </div>
-      </div>
-
-      {/* Profile Summary Card */}
-      {profile && (
-        <div className="bg-white rounded-lg shadow-sm p-6 flex items-center space-x-6">
-          {profile.avatar ? (
-            <img src={profile.avatar} alt="avatar" className="w-16 h-16 rounded-full object-cover" />
-          ) : (
-            <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
-              <span className="text-white text-2xl font-bold">{profile.name?.charAt(0) || 'U'}</span>
-            </div>
-          )}
+    <div className="container container-xl">
+      <div className="dashboard-container">
+        {/* Header */}
+        <div className="dashboard-header">
           <div>
-            <p className="text-lg font-semibold text-gray-900">{profile.name}</p>
-            <p className="text-sm text-gray-500">{profile.email}</p>
-            {profile.skills && (
-              <p className="text-xs text-blue-600">Skills: {Array.isArray(profile.skills) ? profile.skills.join(', ') : profile.skills}</p>
-            )}
-            {profile.target_roles && (
-              <p className="text-xs text-purple-600">Target Roles: {Array.isArray(profile.target_roles) ? profile.target_roles.join(', ') : profile.target_roles}</p>
-            )}
-            <Link to="/settings" className="text-xs text-blue-600 hover:underline">Edit Profile</Link>
+            <h1 className="dashboard-title">
+              {profile?.name ? `Welcome back, ${profile.name}!` : 'Welcome to LinkedIn Job Hunter'}
+            </h1>
+            <p className="dashboard-subtitle">
+              {profile?.current_position ? `Currently: ${profile.current_position}` : 'Ready to find your next opportunity?'}
+            </p>
           </div>
-        </div>
-      )}
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Search className="w-6 h-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Jobs Viewed</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.jobsViewed}</p>
+          <div className="dashboard-header-actions">
+            <div className={`status status-${serverStatus}`}>
+              <div className="status-indicator"></div>
+              <span>{serverStatus === 'connected' ? 'Connected' : 'Disconnected'}</span>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Jobs Applied</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.jobsApplied}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <Star className="w-6 h-6 text-yellow-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Jobs Saved</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.jobsSaved}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <Target className="w-6 h-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Success Rate</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.successRate}%</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {quickActions.map((action, index) => (
-            <Link
-              key={index}
-              to={action.link}
-              className="group p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all duration-200"
-            >
-              <div className="flex items-center space-x-3">
-                <div className={`p-2 rounded-lg ${action.color} text-white`}>
-                  <action.icon className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-medium text-gray-900 group-hover:text-blue-600">
-                    {action.title}
-                  </h3>
-                  <p className="text-sm text-gray-600">{action.description}</p>
-                </div>
+        {/* Setup Progress Checklist */}
+        <div className="dashboard-setup-checklist">
+          <div className="setup-checklist-header">
+            <h2 className="setup-checklist-title">
+              <CheckSquare className="w-5 h-5 text-blue-600" />
+              Getting Started Checklist
+            </h2>
+            <div className="setup-progress">
+              <div className="progress-bar">
+                <div 
+                  className="progress-fill" 
+                  style={{ width: `${getSetupProgress()}%` }}
+                ></div>
               </div>
-            </Link>
-          ))}
-        </div>
-      </div>
+              <span className="progress-text">{getSetupProgress()}% Complete</span>
+            </div>
+          </div>
 
-      {/* Recent Activity */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Activity</h2>
-        <div className="space-y-4">
-          {recentActivity.length === 0 ? (
-            <div className="text-gray-500">No recent activity found.</div>
-          ) : (
-            recentActivity.map((activity) => (
-              <div key={activity.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                {getActivityIcon(activity.type)}
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">{activity.title}</p>
-                  <p className="text-xs text-gray-500">{activity.time}</p>
-                </div>
-                <span className={`text-xs px-2 py-1 rounded-full ${
-                  activity.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                  activity.status === 'saved' ? 'bg-blue-100 text-blue-800' :
-                  'bg-gray-100 text-gray-800'
-                }`}>
-                  {activity.status}
-                </span>
+          {/* Critical Items Warning */}
+          {getCriticalItems().length > 0 && (
+            <div className="critical-items-warning">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+              <div>
+                <h3 className="warning-title">Critical Setup Required</h3>
+                <p className="warning-text">
+                  {getCriticalItems().length} critical item{getCriticalItems().length !== 1 ? 's' : ''} must be completed before automation can start.
+                </p>
               </div>
-            ))
+            </div>
           )}
-        </div>
-      </div>
 
-      {/* AI Assistant Section */}
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold mb-2">AI Assistant Ready</h2>
-            <p className="text-blue-100">Your AI assistant is ready to help with job applications, resume optimization, and interview preparation.</p>
+          {/* Next Steps */}
+          <div className="next-steps-section">
+            <h3 className="next-steps-title">Next Steps to Get Started</h3>
+            <div className="next-steps-list">
+              {getNextSteps().map((item, index) => (
+                <div key={item.id} className={`checklist-item ${item.completed ? 'completed' : ''}`}>
+                  <button
+                    onClick={() => toggleChecklistItem(item.id)}
+                    className="checklist-checkbox"
+                  >
+                    {item.completed ? (
+                      <CheckSquare className="w-5 h-5 text-green-600" />
+                    ) : (
+                      <Square className="w-5 h-5 text-gray-400" />
+                    )}
+                  </button>
+                  <div className="checklist-content">
+                    <div className="checklist-header">
+                      <h4 className="checklist-item-title">{item.title}</h4>
+                      <span className={`priority-badge ${getPriorityColor(item.priority)}`}>
+                        {getPriorityIcon(item.priority)}
+                        {item.priority}
+                      </span>
+                    </div>
+                    <p className="checklist-description">{item.description}</p>
+                    <div className="checklist-actions">
+                      <Link to={item.link} className="checklist-action-btn">
+                        <ExternalLink className="w-4 h-4" />
+                        {item.action}
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="flex space-x-3">
-            <Link
-              to="/easy-apply"
-              className="px-4 py-2 bg-white text-blue-600 rounded-md hover:bg-blue-50 transition-colors"
+
+          {/* Full Checklist Toggle */}
+          <div className="full-checklist-toggle">
+            <button className="toggle-btn">
+              <span>View Full Checklist</span>
+              <ChevronDown className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Profile Card */}
+        {profile && (
+          <div className="dashboard-profile-card">
+            <div className="profile-info">
+              <div className="profile-avatar">
+                {profile.avatar ? (
+                  <img src={profile.avatar} alt="Profile" />
+                ) : (
+                  <User className="w-8 h-8" />
+                )}
+              </div>
+              <div className="profile-details">
+                <h3 className="profile-name">{profile.name}</h3>
+                <p className="profile-position">{profile.current_position}</p>
+                <p className="profile-location">{profile.location}</p>
+              </div>
+            </div>
+            <div className="profile-actions">
+              <Link to="/settings" className="btn btn-secondary">
+                <Settings className="w-4 h-4" />
+                Edit Profile
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Automation Status Card */}
+        <div className="dashboard-automation-card">
+          <div className="automation-header">
+            <h2 className="automation-title">
+              <Zap className="w-5 h-5 text-blue-600" />
+              AI Automation Status
+            </h2>
+            <div className="automation-status-indicator">
+              <div className={`status-dot ${automationStatus}`}></div>
+              <span className="status-text capitalize">{automationStatus}</span>
+            </div>
+          </div>
+          
+          <div className="automation-stats">
+            <div className="automation-stat">
+              <span className="stat-label">Jobs Found:</span>
+              <span className="stat-value">{automationStats.jobsFound}</span>
+            </div>
+            <div className="automation-stat">
+              <span className="stat-label">Jobs Applied:</span>
+              <span className="stat-value">{automationStats.jobsApplied}</span>
+            </div>
+            <div className="automation-stat">
+              <span className="stat-label">Jobs Saved:</span>
+              <span className="stat-value">{automationStats.jobsSaved}</span>
+            </div>
+            <div className="automation-stat">
+              <span className="stat-label">Connections:</span>
+              <span className="stat-value">{automationStats.connectionsMade}</span>
+            </div>
+            <div className="automation-stat">
+              <span className="stat-label">Messages:</span>
+              <span className="stat-value">{automationStats.messagesSent}</span>
+            </div>
+            <div className="automation-stat">
+              <span className="stat-label">Interviews:</span>
+              <span className="stat-value">{automationStats.interviewsScheduled}</span>
+            </div>
+            <div className="automation-stat">
+              <span className="stat-label">Last Run:</span>
+              <span className="stat-value">
+                {automationStats.lastRun ? 
+                  new Date(automationStats.lastRun).toLocaleTimeString() : 
+                  'Never'
+                }
+              </span>
+            </div>
+          </div>
+
+          <div className="automation-controls">
+            <button
+              onClick={handleStartAutomation}
+              disabled={automationStatus === 'running' || getCriticalItems().length > 0}
+              className="btn btn-primary btn-sm"
             >
-              Easy Apply
-            </Link>
-            <Link
-              to="/resume-manager"
-              className="px-4 py-2 bg-blue-700 text-white rounded-md hover:bg-blue-800 transition-colors"
+              <Play className="w-4 h-4" />
+              Start
+            </button>
+            
+            <button
+              onClick={handlePauseAutomation}
+              disabled={automationStatus !== 'running'}
+              className="btn btn-warning btn-sm"
             >
-              Resume Manager
+              <Pause className="w-4 h-4" />
+              Pause
+            </button>
+            
+            <button
+              onClick={handleStopAutomation}
+              disabled={automationStatus === 'idle'}
+              className="btn btn-danger btn-sm"
+            >
+              <XCircle className="w-4 h-4" />
+              Stop
+            </button>
+            
+            <button
+              onClick={handleResetAutomation}
+              className="btn btn-secondary btn-sm"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Reset
+            </button>
+            
+            <Link to="/job-search" className="btn btn-outline btn-sm">
+              <Settings className="w-4 h-4" />
+              Configure
             </Link>
           </div>
         </div>
+
+        {/* Stats Grid */}
+        <div className="dashboard-stats-grid">
+          <div className="stat-card">
+            <div className="stat-icon jobs-viewed">
+              <Activity className="w-6 h-6" />
+            </div>
+            <div className="stat-content">
+              <h3 className="stat-value">{stats.jobsViewed}</h3>
+              <p className="stat-label">Jobs Viewed</p>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon jobs-applied">
+              <CheckCircle className="w-6 h-6" />
+            </div>
+            <div className="stat-content">
+              <h3 className="stat-value">{stats.jobsApplied}</h3>
+              <p className="stat-label">Jobs Applied</p>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon jobs-saved">
+              <Star className="w-6 h-6" />
+            </div>
+            <div className="stat-content">
+              <h3 className="stat-value">{stats.jobsSaved}</h3>
+              <p className="stat-label">Jobs Saved</p>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon success-rate">
+              <TrendingUp className="w-6 h-6" />
+            </div>
+            <div className="stat-content">
+              <h3 className="stat-value">{stats.successRate}%</h3>
+              <p className="stat-label">Success Rate</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="dashboard-section">
+          <h2 className="section-title">Quick Actions</h2>
+          <div className="quick-actions-grid">
+            {quickActions.map((action, index) => {
+              const Icon = action.icon;
+              return (
+                <Link key={index} to={action.href} className="quick-action-card">
+                  <div className={`quick-action-icon ${action.color}`}>
+                    <Icon className="w-6 h-6" />
+                  </div>
+                  <div className="quick-action-content">
+                    <h3 className="quick-action-title">{action.title}</h3>
+                    <p className="quick-action-description">{action.description}</p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Recent Activity */}
+        {recentActivity.length > 0 && (
+          <div className="dashboard-activity-card">
+            <h2 className="dashboard-activity-title">Recent Activity</h2>
+            <div className="dashboard-activity-list">
+              {recentActivity.map((activity, index) => (
+                <div key={index} className="dashboard-activity-item">
+                  <div className={`dashboard-activity-status ${activity.status}`}></div>
+                  <div className="dashboard-activity-content">
+                    <p className="dashboard-activity-text">{activity.description}</p>
+                    <p className="dashboard-activity-time">{activity.timestamp}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* AI Suggestions */}
+        {aiSuggestions.length > 0 && (
+          <div className="dashboard-ai-section">
+            <h2 className="dashboard-ai-title">AI-Powered Insights</h2>
+            <p className="dashboard-ai-desc">
+              Get personalized job recommendations and application tips based on your profile and activity.
+            </p>
+            <div className="dashboard-ai-actions">
+              <Link to="/ai-automation" className="dashboard-ai-btn">
+                <Target className="w-4 h-4 mr-2" />
+                View Recommendations
+              </Link>
+              <Link to="/job-search" className="dashboard-ai-btn">
+                <Search className="w-4 h-4 mr-2" />
+                Start Smart Search
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

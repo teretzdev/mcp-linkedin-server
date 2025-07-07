@@ -643,6 +643,24 @@ async def apply_to_linkedin_job(job_url: str, ctx: Context, resume_path: str = '
             # Wait for application modal
             await page.wait_for_selector('.jobs-easy-apply-modal', timeout=5000)
             
+            # Handle resume upload if path is provided
+            if resume_path and os.path.exists(resume_path):
+                try:
+                    ctx.info(f"Uploading resume from: {resume_path}")
+                    # This selector is a guess and may need to be adjusted.
+                    # It looks for a file input that is not disabled.
+                    file_input_selector = 'input[type="file"]:not(:disabled)'
+                    await page.wait_for_selector(file_input_selector, timeout=5000)
+                    file_chooser = await page.query_selector(file_input_selector)
+                    if file_chooser:
+                        await file_chooser.set_input_files(resume_path)
+                        ctx.info("Resume uploaded successfully.")
+                        report_progress(ctx, 70, 100, "Resume uploaded")
+                    else:
+                        ctx.warning("Could not find resume upload button.")
+                except Exception as upload_error:
+                    ctx.warning(f"Failed to upload resume: {str(upload_error)}")
+
             # Handle application steps (simplified - just submit if possible)
             try:
                 # Look for submit button
@@ -954,6 +972,20 @@ async def list_saved_jobs(ctx: Context) -> dict:
             "message": f"Failed to list saved jobs: {str(e)}",
             "saved_jobs": []
         }
+
+@mcp.raw_route("get", "/health")
+async def health_check(request):
+    """Health check endpoint for the MCP server"""
+    from fastapi.responses import JSONResponse
+    logger.info("Health check endpoint called")
+    return JSONResponse(
+        status_code=200,
+        content={
+            "status": "healthy",
+            "server": "LinkedIn Browser MCP",
+            "timestamp": datetime.now().isoformat()
+        }
+    )
 
 @mcp.tool()
 async def update_application_status(job_id: str, ctx: Context, status: str = None, notes: str = None, follow_up_date: str = None) -> dict:

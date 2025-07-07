@@ -15,10 +15,10 @@ from datetime import datetime, timedelta
 import json
 
 from .models import Base, User, SavedJob, AppliedJob, SessionData, AutomationLog, JobRecommendation, SystemSettings
+from centralized_logging import get_logger
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger("database")
 
 class DatabaseManager:
     """Main database manager class"""
@@ -50,10 +50,10 @@ class DatabaseManager:
             # Create all tables
             Base.metadata.create_all(bind=self.engine)
             
-            logger.info(f"Database initialized successfully: {self.db_path}")
+            logger.log_info(f"Database initialized successfully: {self.db_path}")
             
         except Exception as e:
-            logger.error(f"Failed to initialize database: {e}")
+            logger.log_error(f"Failed to initialize database: {e}")
             raise
     
     @contextmanager
@@ -65,7 +65,7 @@ class DatabaseManager:
             session.commit()
         except Exception as e:
             session.rollback()
-            logger.error(f"Database session error: {e}")
+            logger.log_error(f"Database session error: {e}")
             raise
         finally:
             session.close()
@@ -77,7 +77,7 @@ class DatabaseManager:
                 session.execute(text("SELECT 1"))
                 return True
         except Exception as e:
-            logger.error(f"Database connection test failed: {e}")
+            logger.log_error(f"Database connection test failed: {e}")
             return False
     
     # User Management
@@ -87,7 +87,7 @@ class DatabaseManager:
             with self.get_session() as session:
                 existing_user = session.query(User).filter(User.username == username).first()
                 if existing_user:
-                    logger.warning(f"User already exists: {username}")
+                    logger.log_warning(f"User already exists: {username}")
                     if isinstance(existing_user.id, int):
                         return existing_user.id
                     else:
@@ -95,13 +95,13 @@ class DatabaseManager:
                 user = User(username=username, email=email, **kwargs)
                 session.add(user)
                 session.flush()
-                logger.info(f"Created user: {username}")
+                logger.log_info(f"Created user: {username}")
                 if isinstance(user.id, int):
                     return user.id
                 else:
                     return None
         except Exception as e:
-            logger.error(f"Failed to create user: {e}")
+            logger.log_error(f"Failed to create user: {e}")
             return None
     
     def get_user(self, username: str) -> Optional[int]:
@@ -114,7 +114,7 @@ class DatabaseManager:
                 else:
                     return None
         except Exception as e:
-            logger.error(f"Failed to get user: {e}")
+            logger.log_error(f"Failed to get user: {e}")
             return None
     
     def update_user(self, username: str, **kwargs) -> bool:
@@ -123,16 +123,16 @@ class DatabaseManager:
             with self.get_session() as session:
                 user = session.query(User).filter(User.username == username).first()
                 if not user:
-                    logger.warning(f"User not found: {username}")
+                    logger.log_warning(f"User not found: {username}")
                     return False
                 for key, value in kwargs.items():
                     if hasattr(user, key):
                         setattr(user, key, value)
                 setattr(user, 'updated_at', datetime.now())
-                logger.info(f"Updated user: {username}")
+                logger.log_info(f"Updated user: {username}")
                 return True
         except Exception as e:
-            logger.error(f"Failed to update user: {e}")
+            logger.log_error(f"Failed to update user: {e}")
             return False
     
     # Job Management
@@ -145,7 +145,7 @@ class DatabaseManager:
                     SavedJob.job_id == job_data.get('job_id')
                 ).first()
                 if existing_job:
-                    logger.info(f"Job already saved: {job_data.get('job_id')}")
+                    logger.log_info(f"Job already saved: {job_data.get('job_id')}")
                     return existing_job.to_dict()
                 saved_job = SavedJob(
                     user_id=user_id,
@@ -165,10 +165,10 @@ class DatabaseManager:
                 )
                 session.add(saved_job)
                 session.flush()
-                logger.info(f"Saved job: {job_data.get('title')}")
+                logger.log_info(f"Saved job: {job_data.get('title')}")
                 return saved_job.to_dict()
         except Exception as e:
-            logger.error(f"Failed to save job: {e}")
+            logger.log_error(f"Failed to save job: {e}")
             return None
     
     def get_saved_jobs(self, user_id: int, limit: int = 50) -> List[Dict[str, Any]]:
@@ -180,7 +180,7 @@ class DatabaseManager:
                 ).order_by(SavedJob.saved_at.desc()).limit(limit).all()
                 return [job.to_dict() for job in jobs]
         except Exception as e:
-            logger.error(f"Failed to get saved jobs: {e}")
+            logger.log_error(f"Failed to get saved jobs: {e}")
             return []
     
     def apply_to_job(self, user_id: int, job_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -192,7 +192,7 @@ class DatabaseManager:
                     AppliedJob.job_id == job_data.get('job_id')
                 ).first()
                 if existing_application:
-                    logger.info(f"Already applied to job: {job_data.get('job_id')}")
+                    logger.log_info(f"Already applied to job: {job_data.get('job_id')}")
                     return existing_application.to_dict()
                 applied_job = AppliedJob(
                     user_id=user_id,
@@ -207,10 +207,10 @@ class DatabaseManager:
                 )
                 session.add(applied_job)
                 session.flush()
-                logger.info(f"Applied to job: {job_data.get('title')}")
+                logger.log_info(f"Applied to job: {job_data.get('title')}")
                 return applied_job.to_dict()
         except Exception as e:
-            logger.error(f"Failed to apply to job: {e}")
+            logger.log_error(f"Failed to apply to job: {e}")
             return None
     
     def get_applied_jobs(self, user_id: int, limit: int = 50) -> List[Dict[str, Any]]:
@@ -222,7 +222,7 @@ class DatabaseManager:
                 ).order_by(AppliedJob.applied_at.desc()).limit(limit).all()
                 return [job.to_dict() for job in jobs]
         except Exception as e:
-            logger.error(f"Failed to get applied jobs: {e}")
+            logger.log_error(f"Failed to get applied jobs: {e}")
             return []
     
     # Session Management
@@ -237,10 +237,10 @@ class DatabaseManager:
                 )
                 session.add(session_data)
                 session.flush()
-                logger.info(f"Created session: {session_id}")
+                logger.log_info(f"Created session: {session_id}")
                 return session_data.to_dict()
         except Exception as e:
-            logger.error(f"Failed to create session: {e}")
+            logger.log_error(f"Failed to create session: {e}")
             return None
     
     def update_session(self, session_id: str, **kwargs) -> bool:
@@ -251,15 +251,15 @@ class DatabaseManager:
                     SessionData.session_id == session_id
                 ).first()
                 if not session_data:
-                    logger.warning(f"Session not found: {session_id}")
+                    logger.log_warning(f"Session not found: {session_id}")
                     return False
                 for key, value in kwargs.items():
                     if hasattr(session_data, key):
                         setattr(session_data, key, value)
-                logger.info(f"Updated session: {session_id}")
+                logger.log_info(f"Updated session: {session_id}")
                 return True
         except Exception as e:
-            logger.error(f"Failed to update session: {e}")
+            logger.log_error(f"Failed to update session: {e}")
             return False
     
     def end_session(self, session_id: str) -> bool:
@@ -270,15 +270,15 @@ class DatabaseManager:
                     SessionData.session_id == session_id
                 ).first()
                 if not session_data:
-                    logger.warning(f"Session not found: {session_id}")
+                    logger.log_warning(f"Session not found: {session_id}")
                     return False
                 setattr(session_data, 'end_time', datetime.now())
                 if getattr(session_data, 'start_time', None):
                     setattr(session_data, 'session_duration', int((session_data.end_time - session_data.start_time).total_seconds()))
-                logger.info(f"Ended session: {session_id}")
+                logger.log_info(f"Ended session: {session_id}")
                 return True
         except Exception as e:
-            logger.error(f"Failed to end session: {e}")
+            logger.log_error(f"Failed to end session: {e}")
             return False
     
     # Logging
@@ -298,10 +298,10 @@ class DatabaseManager:
                     job_id=job_id
                 )
                 session.add(log_entry)
-                logger.info(f"Logged action: {action} (success: {success})")
+                logger.log_info(f"Logged action: {action} (success: {success})")
                 return True
         except Exception as e:
-            logger.error(f"Failed to log action: {e}")
+            logger.log_error(f"Failed to log action: {e}", e)
             return False
     
     def get_automation_logs(self, user_id: int, limit: int = 100) -> List[Dict[str, Any]]:
@@ -313,7 +313,7 @@ class DatabaseManager:
                 ).order_by(AutomationLog.timestamp.desc()).limit(limit).all()
                 return [log.to_dict() for log in logs]
         except Exception as e:
-            logger.error(f"Failed to get automation logs: {e}")
+            logger.log_error(f"Failed to get automation logs: {e}", e)
             return []
     
     # System Settings
@@ -326,7 +326,7 @@ class DatabaseManager:
                 ).first()
                 return str(setting.setting_value) if setting and setting.setting_value is not None else None
         except Exception as e:
-            logger.error(f"Failed to get setting: {e}")
+            logger.log_error(f"Failed to get setting: {e}")
             return None
     
     def set_setting(self, key: str, value: str, setting_type: str = 'string', 
@@ -350,10 +350,10 @@ class DatabaseManager:
                         description=description
                     )
                     session.add(setting)
-                logger.info(f"Set setting: {key} = {value}")
+                logger.log_info(f"Set setting: {key} = {value}")
                 return True
         except Exception as e:
-            logger.error(f"Failed to set setting: {e}")
+            logger.log_error(f"Failed to set setting: {e}")
             return False
     
     # Database Maintenance
@@ -362,10 +362,10 @@ class DatabaseManager:
         try:
             import shutil
             shutil.copy2(self.db_path, backup_path)
-            logger.info(f"Database backed up to: {backup_path}")
+            logger.log_info(f"Database backed up to: {backup_path}")
             return True
         except Exception as e:
-            logger.error(f"Failed to backup database: {e}")
+            logger.log_error(f"Failed to backup database: {e}")
             return False
     
     def get_database_stats(self) -> Dict[str, Any]:
@@ -383,7 +383,7 @@ class DatabaseManager:
                 }
                 return stats
         except Exception as e:
-            logger.error(f"Failed to get database stats: {e}")
+            logger.log_error(f"Failed to get database stats: {e}")
             return {}
     
     def cleanup_old_data(self, days: int = 30) -> int:
@@ -405,11 +405,11 @@ class DatabaseManager:
                 ).delete()
                 deleted_count += old_sessions
                 
-                logger.info(f"Cleaned up {deleted_count} old records")
+                logger.log_info(f"Cleaned up {deleted_count} old records")
                 return deleted_count
                 
         except Exception as e:
-            logger.error(f"Failed to cleanup old data: {e}")
+            logger.log_error(f"Failed to cleanup old data: {e}")
             return 0
     
     def get_user_by_id(self, user_id: int) -> Optional[dict]:
@@ -421,7 +421,7 @@ class DatabaseManager:
                     return user.to_dict()
                 return None
         except Exception as e:
-            logger.error(f"Failed to get user by id: {e}")
+            logger.log_error(f"Failed to get user by id: {e}")
             return None
     
     def get_credentials(self, username: str) -> Optional[dict]:
@@ -437,7 +437,7 @@ class DatabaseManager:
                     }
                 return None
         except Exception as e:
-            logger.error(f"Failed to get credentials: {e}")
+            logger.log_error(f"Failed to get credentials: {e}")
             return None
     
     def save_resume_path(self, username: str, resume_path: str) -> bool:
@@ -451,5 +451,5 @@ class DatabaseManager:
                 setattr(user, 'updated_at', datetime.now())
                 return True
         except Exception as e:
-            logger.error(f"Failed to save resume path: {e}")
+            logger.log_error(f"Failed to save resume path: {e}")
             return False 

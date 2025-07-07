@@ -1,4 +1,5 @@
 @echo off
+REM IMPORTANT: Run this script in CMD, not PowerShell!
 setlocal enabledelayedexpansion
 
 echo ========================================

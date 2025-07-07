@@ -13,6 +13,10 @@ from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
 from dotenv import load_dotenv
 import aiohttp
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+import uvicorn
+import argparse
 
 # Load environment variables
 load_dotenv()
@@ -20,6 +24,12 @@ load_dotenv()
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+app = FastAPI()
+
+@app.get("/health")
+def health_check():
+    return JSONResponse(content={"status": "healthy", "timestamp": datetime.now().isoformat()})
 
 @dataclass
 class UserProfile:
@@ -98,17 +108,10 @@ class LLMController:
     async def save_user_profile(self):
         """Save user profile to file"""
         if self.user_profile:
-            # Ensure all fields are not None
-            profile_dict = asdict(self.user_profile)
-            profile_dict['skills'] = profile_dict.get('skills') or []
-            profile_dict['target_roles'] = profile_dict.get('target_roles') or []
-            profile_dict['target_locations'] = profile_dict.get('target_locations') or []
-            profile_dict['username'] = profile_dict.get('username') or ""
-            profile_dict['current_position'] = profile_dict.get('current_position') or ""
             with open("user_profile.json", 'w') as f:
-                json.dump(profile_dict, f, indent=2, default=str)
+                json.dump(asdict(self.user_profile), f, indent=2, default=str)
     
-    async def search_jobs(self, query: str = None, location: str = "", count: int = 10) -> Dict[str, Any]:
+    async def search_jobs(self, query: Optional[str] = None, location: str = "", count: int = 10) -> Dict[str, Any]:
         """Search for jobs using intelligent parameters"""
         if not query:
             # Use LLM-like logic to generate search query
@@ -260,35 +263,23 @@ class LLMController:
         
         logger.info("LLM Controller shutdown complete")
 
-# Example usage
 async def main():
-    """Example usage of the LLM Controller"""
+    """Main execution loop"""
     controller = LLMController()
-    
-    try:
-        # Initialize
-        if not await controller.initialize():
-            logger.error("Failed to initialize controller")
-            return
-        
-        # Run automation session
-        goals = [
-            "Find relevant job opportunities",
-            "Apply to suitable positions"
-        ]
-        
-        result = await controller.run_automation_session(goals)
-        print("Session completed:", json.dumps(result, indent=2, default=str))
-        
-        # Get recommendations
-        recommendations = await controller.get_recommendations()
-        print("Recommendations:", json.dumps(recommendations, indent=2, default=str))
-        
-    except Exception as e:
-        logger.error(f"Error in main: {e}")
-    
-    finally:
-        await controller.shutdown()
+    if not await controller.initialize():
+        logger.error("Failed to initialize LLM controller, exiting.")
+        return
+
+    # Example of running an automation session
+    # await controller.run_automation_session(goals=["job search", "apply"])
+
+    # In a real scenario, the controller would be driven by API calls
+    # For now, we just start the server
+    logger.info("Starting LLM controller server")
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    parser = argparse.ArgumentParser(description="Run the LLM Controller")
+    parser.add_argument("--port", type=int, default=8003, help="Port to run the server on")
+    args = parser.parse_args()
+
+    uvicorn.run(app, host="0.0.0.0", port=args.port) 

@@ -56,14 +56,14 @@ function Sidebar({ isLoggedIn, serverStatus, onLogin, onLogout, currentUser }) {
   };
 
   return (
-    <div className="w-64 bg-white shadow-sm border-r border-gray-200 min-h-screen">
+    <div className="sidebar">
       <div className="p-6">
         {/* Logo */}
         <div className="flex items-center space-x-3 mb-8">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
             <span className="text-white font-bold text-sm">L</span>
           </div>
-          <h1 className="text-xl font-bold text-gray-900">Job Hunter</h1>
+          <h1 className="text-xl font-bold">Job Hunter</h1>
         </div>
 
         {/* Navigation */}
@@ -74,13 +74,9 @@ function Sidebar({ isLoggedIn, serverStatus, onLogin, onLogout, currentUser }) {
               <Link
                 key={item.name}
                 to={item.href}
-                className={`flex items-center space-x-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  isActive(item.href)
-                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
+                className={`sidebar-item ${isActive(item.href) ? 'active' : ''}`}
               >
-                <Icon className="w-5 h-5" />
+                <Icon className="sidebar-icon" />
                 <span>{item.name}</span>
               </Link>
             );
@@ -88,10 +84,10 @@ function Sidebar({ isLoggedIn, serverStatus, onLogin, onLogout, currentUser }) {
         </nav>
 
         {/* Server Status */}
-        <div className="mt-8 p-3 bg-gray-50 rounded-lg">
+        <div className="mt-8 p-3 card">
           <div className="flex items-center space-x-2">
             <div className={`w-2 h-2 rounded-full ${serverStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <span className="text-xs text-gray-600">
+            <span className="text-xs">
               {serverStatus === 'connected' ? 'Connected' : 'Disconnected'}
             </span>
           </div>
@@ -99,7 +95,7 @@ function Sidebar({ isLoggedIn, serverStatus, onLogin, onLogout, currentUser }) {
 
         {/* User Profile */}
         {(profile || currentUser) && (
-          <div className="mt-6 p-3 bg-gray-50 rounded-lg">
+          <div className="mt-6 p-3 card">
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
                 {profile?.avatar ? (
@@ -111,7 +107,7 @@ function Sidebar({ isLoggedIn, serverStatus, onLogin, onLogout, currentUser }) {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
+                <p className="text-sm font-medium truncate">
                   {profile?.name || currentUser?.name || 'User'}
                 </p>
                 <p className="text-xs text-gray-500 truncate">
@@ -133,7 +129,7 @@ function Sidebar({ isLoggedIn, serverStatus, onLogin, onLogout, currentUser }) {
             </Link>
             <button
               onClick={onLogout}
-              className="mt-3 w-full flex items-center justify-center space-x-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+              className="mt-3 w-full flex items-center justify-center space-x-2 px-3 py-2 text-sm hover:bg-gray-100 rounded-md transition-colors"
             >
               <LogOut className="w-4 h-4" />
               <span>Logout</span>

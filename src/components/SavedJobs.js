@@ -1,183 +1,203 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Filter, Calendar, XCircle, ArrowUpDown, Building2, MapPin, Clock, Bell, FileText } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, XCircle, ArrowUpDown, Bookmark, Building, MapPin, Calendar } from 'lucide-react';
 import axios from 'axios';
 
-const SORT_OPTIONS = [
-  { value: 'date', label: 'Date Saved' },
-  { value: 'title', label: 'Job Title' },
-  { value: 'company', label: 'Company' },
-];
-
-function SavedJobs({ updateSessionStats, sessionStats }) {
-  // State for search and filters
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedLocation, setSelectedLocation] = useState('');
-  const [selectedCompany, setSelectedCompany] = useState('');
-  const [selectedDateRange, setSelectedDateRange] = useState('');
-  const [sortBy, setSortBy] = useState('date');
+function SavedJobs() {
+  const [savedJobs, setSavedJobs] = useState([]);
+  const [filteredJobs, setFilteredJobs] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('dateSaved');
   const [sortAsc, setSortAsc] = useState(false);
-  const [jobs, setJobs] = useState([]);
-
-  // Unique locations and companies for filter dropdowns
-  const locations = useMemo(() => Array.from(new Set(jobs.map(j => j.location))), [jobs]);
-  const companies = useMemo(() => Array.from(new Set(jobs.map(j => j.company))), [jobs]);
-
-  // Filtering logic
-  const filteredJobs = useMemo(() => {
-    let filtered = jobs.filter(job => {
-      const matchesSearch =
-        !searchTerm ||
-        job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        job.company.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesLocation = !selectedLocation || job.location === selectedLocation;
-      const matchesCompany = !selectedCompany || job.company === selectedCompany;
-      const matchesDateRange = !selectedDateRange || (() => {
-        const now = new Date();
-        const jobDate = new Date(job.dateSaved);
-        if (selectedDateRange === 'today') {
-          return now.toDateString() === jobDate.toDateString();
-        } else if (selectedDateRange === 'thisweek') {
-          const startOfWeek = new Date(now);
-          startOfWeek.setDate(now.getDate() - now.getDay());
-          return jobDate >= startOfWeek && jobDate <= now;
-        } else if (selectedDateRange === 'last7') {
-          return (now - jobDate) / (1000 * 60 * 60 * 24) <= 7;
-        } else if (selectedDateRange === 'last30') {
-          return (now - jobDate) / (1000 * 60 * 60 * 24) <= 30;
-        }
-        return true;
-      })();
-      return matchesSearch && matchesLocation && matchesCompany && matchesDateRange;
-    });
-    // Sorting
-    filtered = filtered.sort((a, b) => {
-      if (sortBy === 'date') {
-        return sortAsc
-          ? new Date(a.dateSaved) - new Date(b.dateSaved)
-          : new Date(b.dateSaved) - new Date(a.dateSaved);
-      } else if (sortBy === 'title') {
-        return sortAsc
-          ? a.title.localeCompare(b.title)
-          : b.title.localeCompare(a.title);
-      } else if (sortBy === 'company') {
-        return sortAsc
-          ? a.company.localeCompare(b.company)
-          : b.company.localeCompare(a.company);
-      }
-      return 0;
-    });
-    return filtered;
-  }, [jobs, searchTerm, selectedLocation, selectedCompany, selectedDateRange, sortBy, sortAsc]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch saved jobs from backend
-    const fetchJobs = async () => {
-      try {
-        const response = await axios.get('/api/saved_jobs');
-        setJobs(response.data.saved_jobs || []);
-      } catch (error) {
-        setJobs([]);
-      }
-    };
-    fetchJobs();
+    fetchSavedJobs();
   }, []);
 
-  const handleViewJob = (job) => {
-    updateSessionStats({ jobs_viewed: (sessionStats.jobs_viewed || 0) + 1 });
+  useEffect(() => {
+    filterAndSortJobs();
+  }, [savedJobs, searchQuery, sortBy, sortAsc]);
+
+  const fetchSavedJobs = async () => {
+    try {
+      const response = await axios.get('/api/saved_jobs');
+      setSavedJobs(response.data.jobs || []);
+    } catch (error) {
+      console.error('Failed to fetch saved jobs:', error);
+      setSavedJobs([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleRemoveSavedJob = async (job) => {
-    try {
-      await axios.post('/api/remove_saved_job', { job_id: job.id });
-      setJobs(jobs => jobs.filter(j => j.id !== job.id));
-      updateSessionStats({ jobs_saved: Math.max((sessionStats.jobs_saved || 1) - 1, 0) });
-    } catch (error) {}
+  const filterAndSortJobs = () => {
+    let filtered = savedJobs.filter(job =>
+      job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      job.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      job.location.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    // Sort jobs
+    filtered.sort((a, b) => {
+      let aValue, bValue;
+      
+      switch (sortBy) {
+        case 'title':
+          aValue = a.title.toLowerCase();
+          bValue = b.title.toLowerCase();
+          break;
+        case 'company':
+          aValue = a.company.toLowerCase();
+          bValue = b.company.toLowerCase();
+          break;
+        case 'location':
+          aValue = a.location.toLowerCase();
+          bValue = b.location.toLowerCase();
+          break;
+        case 'dateSaved':
+        default:
+          aValue = new Date(a.dateSaved);
+          bValue = new Date(b.dateSaved);
+          break;
+      }
+
+      if (aValue < bValue) return sortAsc ? -1 : 1;
+      if (aValue > bValue) return sortAsc ? 1 : -1;
+      return 0;
+    });
+
+    setFilteredJobs(filtered);
   };
 
   const clearFilters = () => {
-    setSearchTerm('');
-    setSelectedLocation('');
-    setSelectedCompany('');
-    setSelectedDateRange('');
-    setSortBy('date');
+    setSearchQuery('');
+    setSortBy('dateSaved');
     setSortAsc(false);
   };
 
-  return (
-    <div className="p-6 bg-white rounded-lg shadow-lg">
-      <div className="flex flex-col md:flex-row md:items-end md:space-x-4 mb-6">
-        <div className="flex-1 mb-2 md:mb-0">
-          <div className="relative">
-            <Search className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search jobs by title"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              data-testid="search-input"
-            />
+  const removeSavedJob = async (jobId) => {
+    try {
+      await axios.delete(`/api/saved_jobs/${jobId}`);
+      setSavedJobs(prev => prev.filter(job => job.id !== jobId));
+    } catch (error) {
+      console.error('Failed to remove saved job:', error);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="container container-lg">
+        <div className="p-xl">
+          <div className="card">
+            <div className="card-body text-center">
+              <p className="text-secondary">Loading saved jobs...</p>
+            </div>
           </div>
         </div>
-        <div className="flex space-x-2">
-          <button onClick={clearFilters} className="flex items-center px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
-            <XCircle className="w-4 h-4 mr-1" />
-            Clear Filters
-          </button>
-        </div>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
-        <select value={selectedLocation} onChange={e => setSelectedLocation(e.target.value)} className="col-span-1 p-2 border rounded-lg">
-          <option value="">All Locations</option>
-          <option value="Remote">Remote</option>
-          <option value="San Francisco">San Francisco</option>
-        </select>
-        <select value={selectedCompany} onChange={e => setSelectedCompany(e.target.value)} className="col-span-1 p-2 border rounded-lg">
-          <option value="">All Companies</option>
-          <option value="Company A">Company A</option>
-          <option value="Company B">Company B</option>
-          <option value="Company C">Company C</option>
-        </select>
-        <select value={selectedDateRange} onChange={e => setSelectedDateRange(e.target.value)} className="col-span-1 p-2 border rounded-lg">
-          <option value="">All Time</option>
-          <option value="today">Today</option>
-          <option value="thisweek">This Week</option>
-          <option value="last7">Last 7 days</option>
-          <option value="last30">Last 30 days</option>
-        </select>
-        <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="col-span-1 p-2 border rounded-lg">
-          {SORT_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-        </select>
-        <button onClick={() => setSortAsc(a => !a)} className="col-span-1 flex items-center px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
-          <ArrowUpDown className="w-4 h-4 mr-1" />
-          {sortAsc ? 'Asc' : 'Desc'}
-        </button>
-      </div>
-      <div className="mb-4 text-gray-600 text-sm">
-        Results: {filteredJobs.length} job{filteredJobs.length !== 1 ? 's' : ''} found
-      </div>
-      <div>
-        {filteredJobs.length === 0 ? (
-          <div className="text-gray-500 text-center py-8">No saved jobs found matching your criteria.</div>
-        ) : (
-          <ul className="divide-y divide-gray-200">
-            {filteredJobs.map(job => (
-              <li key={job.id} onClick={() => handleViewJob(job)} className="py-4 flex flex-col md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center space-x-3">
-                  <FileText className="w-5 h-5 text-blue-500" />
-                  <div>
-                    <div className="font-semibold text-lg text-gray-800">{job.title}</div>
-                    <div className="text-gray-600">{job.company} &middot; {job.location}</div>
-                    <div className="text-gray-400 text-xs">Saved: {job.dateSaved}</div>
+    );
+  }
+
+  return (
+    <div className="container container-lg">
+      <div className="p-xl">
+        <div className="card">
+          <div className="card-header">
+            <h1 className="text-2xl font-bold text-primary flex items-center gap-sm">
+              <Bookmark className="w-5 h-5" />
+              Saved Jobs
+            </h1>
+          </div>
+          
+          <div className="card-body">
+            {/* Search and Filters */}
+            <div className="flex flex-col md:flex-row md:items-end md:gap-lg mb-lg">
+              <div className="flex-1 mb-sm md:mb-0">
+                <div className="relative">
+                  <Search className="absolute left-md top-1/2 transform -translate-y-1/2 w-5 h-5 text-tertiary" />
+                  <input
+                    type="text"
+                    placeholder="Search saved jobs..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="form-input pl-xl"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-sm">
+                <button onClick={clearFilters} className="btn btn-secondary">
+                  <XCircle className="w-4 h-4" />
+                  Clear Filters
+                </button>
+              </div>
+            </div>
+
+            {/* Sort Options */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-md mb-lg">
+              <button 
+                onClick={() => setSortAsc(a => !a)} 
+                className="btn btn-secondary flex items-center gap-sm"
+              >
+                <ArrowUpDown className="w-4 h-4" />
+                {sortAsc ? 'Ascending' : 'Descending'}
+              </button>
+              
+              <select 
+                value={sortBy} 
+                onChange={(e) => setSortBy(e.target.value)} 
+                className="form-input"
+              >
+                <option value="dateSaved">Date Saved</option>
+                <option value="title">Job Title</option>
+                <option value="company">Company</option>
+                <option value="location">Location</option>
+              </select>
+            </div>
+
+            {/* Results Count */}
+            <div className="mb-md text-secondary text-sm">
+              Found {filteredJobs.length} saved job{filteredJobs.length !== 1 ? 's' : ''}
+            </div>
+
+            {/* Jobs List */}
+            {filteredJobs.length === 0 ? (
+              <div className="text-center py-xl text-tertiary">
+                {searchQuery ? 'No saved jobs found matching your criteria.' : 'No saved jobs found.'}
+              </div>
+            ) : (
+              <div className="space-y-md">
+                {filteredJobs.map(job => (
+                  <div key={job.id} className="card">
+                    <div className="card-body">
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+                        <div className="flex-1">
+                          <div className="font-semibold text-lg text-primary mb-xs">{job.title}</div>
+                          <div className="text-secondary mb-xs">{job.company} • {job.location}</div>
+                          <div className="text-tertiary text-xs">Saved: {job.dateSaved}</div>
+                        </div>
+                        
+                        <div className="flex gap-sm mt-sm md:mt-0">
+                          <button 
+                            onClick={() => window.open(job.url, '_blank')}
+                            className="btn btn-primary btn-sm"
+                          >
+                            View Job
+                          </button>
+                          <button 
+                            onClick={() => removeSavedJob(job.id)}
+                            className="btn btn-error btn-sm"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center space-x-2 mt-2 md:mt-0">
-                  <button onClick={e => { e.stopPropagation(); handleRemoveSavedJob(job); }} className="px-2 py-1 bg-red-100 text-red-700 rounded">Remove</button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

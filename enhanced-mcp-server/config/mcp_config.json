@@ -3,7 +3,7 @@
   "log_level": "INFO",
   "server": {
     "host": "localhost",
-    "port": 8000,
+    "port": 8002,
     "timeout": 30
   },
   "browser": {
