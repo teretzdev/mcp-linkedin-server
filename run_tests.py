@@ -10,6 +10,11 @@ import time
 from pathlib import Path
 from typing import Dict, Any, List
 
+# Add legacy directory to path to allow imports
+LEGACY_DIR = Path(__file__).parent / "legacy"
+if LEGACY_DIR.is_dir():
+    sys.path.insert(0, str(LEGACY_DIR))
+
 def run_environment_tests() -> Dict[str, Any]:
     """Run environment validation tests"""
     results = []
@@ -200,8 +205,8 @@ def run_startup_tests() -> Dict[str, Any]:
     try:
         base_path = Path(__file__).parent
         service_files = [
-            "api_bridge.py",
-            "linkedin_browser_mcp.py", 
+            "legacy/api_bridge.py",
+            "legacy/linkedin_browser_mcp.py",
             "auto_startup.py"
         ]
         
