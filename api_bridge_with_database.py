@@ -441,7 +441,7 @@ async def apply_job(request: JobApplyRequest, user: dict = Depends(get_current_u
         if request.resume_used:
             # Construct path to resume. Assumes resumes are in a "resumes" directory at the project root.
             resume_file = Path("resumes") / request.resume_used
-            if````````````````````````````````````````dw33edzCCY8 resume_file.exists():
+            if resume_file.exists():
                 resume_path = str(resume_file.absolute())
                 logger.log_info(f"Found resume to use: {resume_path}")
             else:
