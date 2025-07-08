@@ -150,7 +150,7 @@ async def load_cookies(context, platform):
 class BrowserSession:
     """Context manager for browser sessions with cookie persistence"""
     
-    def __init__(self, platform='linkedin', headless=True, launch_timeout=30000, max_retries=3):
+    def __init__(self, platform='linkedin', headless=False, launch_timeout=30000, max_retries=3):
         logger.info(f"Initializing {platform} browser session (headless: {headless})")
         self.platform = platform
         self.headless = headless
@@ -285,28 +285,32 @@ class BrowserSession:
             raise
 
 async def _login_linkedin(username: str | None = None, password: str | None = None, ctx: Context | None = None) -> dict:
-    """Business logic for LinkedIn login. Relies on existing session cookies."""
-    logger.info("Checking for existing LinkedIn session.")
-
-    async with BrowserSession(platform='linkedin', headless=True) as session:
+    """Navigates to the login page and waits for the user to log in manually."""
+    logger.info("Opening browser for manual LinkedIn login.")
+    
+    async with BrowserSession(platform='linkedin', headless=False) as session:
         try:
-            page = await session.new_page('https://www.linkedin.com/feed/')
+            page = await session.new_page('https://www.linkedin.com/login')
             
-            # If the page URL is not the feed, we are not logged in.
-            if "linkedin.com/feed" not in page.url:
-                logger.error("Not logged in to LinkedIn.")
-                return {
-                    "status": "error", 
-                    "message": "Not logged in. Please create a session file by logging in manually."
-                }
+            # Inform the user to log in
+            message = "A browser window has been opened. Please log in to your LinkedIn account manually. The script will continue automatically after you successfully log in."
+            logger.info(message)
+            if ctx:
+                ctx.info(message)
+
+            # Wait for the user to log in and be redirected to the feed.
+            # The timeout is set to 2 minutes to give ample time.
+            await page.wait_for_url("**/feed/**", timeout=120000)
             
-            logger.info("Existing session is valid.")
-            await session.save_session(page) # Refresh the session cookies
-            return {"status": "success", "message": "Already logged in"}
+            logger.info("Manual login successful. Saving session for future runs.")
+            await session.save_session(page)
+            
+            return {"status": "success", "message": "Login successful"}
 
         except Exception as e:
-            logger.error(f"Failed to check LinkedIn session: {str(e)}")
-            return {"status": "error", "message": f"Failed to check session: {str(e)}"}
+            error_message = f"Manual login failed or timed out: {str(e)}"
+            logger.error(error_message)
+            return {"status": "error", "message": error_message}
 
 @mcp.tool()
 async def login_linkedin(username: str | None = None, password: str | None = None, ctx: Context | None = None) -> dict:
