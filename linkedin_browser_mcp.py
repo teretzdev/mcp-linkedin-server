@@ -311,10 +311,23 @@ async def _login_linkedin(username: str | None = None, password: str | None = No
 
         except Exception as e:
             logger.error(f"LinkedIn login failed: {str(e)}")
-            # Take a screenshot on failure
-            screenshot_path = Path("logs") / f"login_failure_{int(time.time())}.png"
-            await page.screenshot(path=str(screenshot_path))
-            logger.error(f"Screenshot of failure saved to {screenshot_path}")
+            
+            # Save debug information on failure
+            try:
+                # Take a screenshot
+                screenshot_path = Path("logs") / f"login_failure_{int(time.time())}.png"
+                await page.screenshot(path=str(screenshot_path))
+                logger.error(f"Screenshot of failure saved to {screenshot_path}")
+
+                # Save HTML content
+                html_content = await page.content()
+                html_path = Path("logs") / f"login_failure_{int(time.time())}.html"
+                with open(html_path, "w", encoding="utf-8") as f:
+                    f.write(html_content)
+                logger.error(f"HTML of failure page saved to {html_path}")
+            except Exception as debug_e:
+                logger.error(f"Could not save debug info: {debug_e}")
+
             return {"status": "error", "message": f"Login failed: {str(e)}"}
 
 @mcp.tool()
