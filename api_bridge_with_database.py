@@ -26,6 +26,7 @@ import uvicorn
 import base64
 from fastapi.responses import JSONResponse
 import uuid
+from fastmcp import Client
 
 # Import database components
 from legacy.database.database import DatabaseManager
@@ -322,26 +323,45 @@ async def search_jobs(request: JobSearchRequest, background_tasks: BackgroundTas
             return cache_entry['data']
     
     try:
-        # Simulate job search (replace with actual MCP call)
-        jobs = [
-            {
-                "id": f"job_{i}",
-                "title": f"{request.query} Developer",
-                "company": f"Company {i}",
-                "location": request.location or "Remote",
-                "description": f"Looking for a {request.query} developer...",
-                "url": f"https://linkedin.com/jobs/view/{i}",
-                "easy_apply": i % 2 == 0
-            }
-            for i in range(1, request.count + 1)
-        ]
+        logger.log_info(f"Starting real job search for query: {request.query}")
         
-        result = {
-            "jobs": jobs,
-            "total": len(jobs),
-            "query": request.query,
-            "location": request.location
-        }
+        # Use FastMCP client to call the browser automation script
+        client = Client(str(Path(__file__).parent / "linkedin_browser_mcp.py"))
+        
+        async with client:
+            # Login first, to make sure we have a valid session
+            # This will use credentials from .env
+            login_result = await client.call_tool("login_linkedin_secure")
+            if login_result.data.get("status") != "success":
+                logger.log_error(f"MCP login failed: {login_result.data.get('message')}")
+                raise HTTPException(status_code=500, detail=f"Failed to login to LinkedIn: {login_result.data.get('message')}")
+
+            logger.log_info("MCP login successful, proceeding to search.")
+            
+            # Call the job search tool
+            tool_result = await client.call_tool(
+                "search_linkedin_jobs",
+                {
+                    "query": request.query,
+                    "location": request.location,
+                    "count": request.count,
+                }
+            )
+
+        if tool_result.data.get("status") == "success":
+            jobs = tool_result.data.get("jobs", [])
+            logger.log_info(f"Found {len(jobs)} jobs via MCP.")
+            result = {
+                "jobs": jobs,
+                "total": len(jobs),
+                "query": request.query,
+                "location": request.location
+            }
+        else:
+            error_message = tool_result.data.get("message", "Unknown error from MCP worker")
+            logger.log_error(f"MCP job search failed: {error_message}")
+            raise HTTPException(status_code=500, detail=f"Failed to search jobs via MCP: {error_message}")
+
         
         # Cache the result
         api_cache[cache_key] = {
@@ -414,6 +434,47 @@ async def save_job(request: SaveJobRequest, user: dict = Depends(get_current_use
 async def apply_job(request: JobApplyRequest, user: dict = Depends(get_current_user)):
     """Apply to a job"""
     try:
+        # --- Real Application via MCP ---
+        logger.log_info(f"Starting real application for job: {request.job_url}")
+        
+        resume_path = ""
+        if request.resume_used:
+            # Construct path to resume. Assumes resumes are in a "resumes" directory at the project root.
+            resume_file = Path("resumes") / request.resume_used
+            if resume_file.exists():
+                resume_path = str(resume_file.absolute())
+                logger.log_info(f"Found resume to use: {resume_path}")
+            else:
+                logger.log_warning(f"Resume file not found: {request.resume_used}")
+
+        # Use FastMCP client to call the browser automation script
+        client = Client(str(Path(__file__).parent / "linkedin_browser_mcp.py"))
+
+        async with client:
+            # Login first
+            login_result = await client.call_tool("login_linkedin_secure")
+            if login_result.data.get("status") != "success":
+                logger.log_error(f"MCP login failed: {login_result.data.get('message')}")
+                raise HTTPException(status_code=500, detail=f"Failed to login to LinkedIn: {login_result.data.get('message')}")
+            
+            logger.log_info("MCP login successful, proceeding to apply.")
+
+            # Call the apply to job tool
+            apply_result = await client.call_tool(
+                "apply_to_linkedin_job",
+                {"job_url": request.job_url, "resume_path": resume_path}
+            )
+
+        if apply_result.data.get("status") != "success":
+            error_message = apply_result.data.get("message", "Unknown error from MCP worker")
+            logger.log_error(f"MCP job application failed: {error_message}")
+            # Even if it fails, we might still want to record the attempt.
+            # For now, we'll raise an error.
+            raise HTTPException(status_code=500, detail=f"Failed to apply to job via MCP: {error_message}")
+        
+        logger.log_info(f"Successfully applied to job via MCP: {request.job_url}")
+        # --- End of MCP part ---
+
         db = get_db_manager()
         user_id = user['id']
         if not isinstance(user_id, int):

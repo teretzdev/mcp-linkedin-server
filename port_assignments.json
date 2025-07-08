@@ -1,0 +1,5 @@
+{
+  "api_bridge": 8002,
+  "mcp_backend": 8101,
+  "llm_controller": 8201
+}

@@ -192,16 +192,16 @@ class AIJobAutomation:
         # Port management logic
         self.used_ports = self.get_used_ports()
         self.avoid_port_range = range(8000, 8010)
-        if config_port in self.used_ports:
-            print(f"[Startup] Port {config_port} is already in use. Attempting to free it...")
-            self.kill_process_on_port(config_port)
-        # Check backend health before running automation
-        if not self.check_backend_health():
-            print(f"[Startup] Backend at {self.api_base_url} is not healthy. Attempting to restart backend...")
-            self.restart_backend(config_port)
-            if not self.check_backend_health():
-                raise RuntimeError(f"[Startup] Backend at {self.api_base_url} is still not healthy after restart.")
-        print(f"[Startup] Backend at {self.api_base_url} is healthy.")
+        # if config_port in self.used_ports:
+        #     print(f"[Startup] Port {config_port} is already in use. Attempting to free it...")
+        #     self.kill_process_on_port(config_port)
+        # # Check backend health before running automation
+        # if not self.check_backend_health():
+        #     print(f"[Startup] Backend at {self.api_base_url} is not healthy. Attempting to restart backend...")
+        #     self.restart_backend(config_port)
+        #     if not self.check_backend_health():
+        #         raise RuntimeError(f"[Startup] Backend at {self.api_base_url} is still not healthy after restart.")
+        # print(f"[Startup] Backend at {self.api_base_url} is healthy.")
         
         self.automation_stats = {
             "jobs_searched": 0,
@@ -604,14 +604,18 @@ class AIJobAutomation:
         return used_ports
 
     def kill_process_on_port(self, port):
-        for proc in psutil.process_iter(['pid', 'name', 'connections']):
-            for conn in proc.info.get('connections', []):
-                if conn.status == 'LISTEN' and conn.laddr.port == port:
-                    try:
+        """Kill a process running on a specific port"""
+        for proc in psutil.process_iter(['pid', 'name']):
+            try:
+                for conn in proc.connections(kind='inet'):
+                    if conn.laddr.port == port:
+                        logger.log_info(f"Killing process {proc.name()} (PID: {proc.pid}) on port {port}")
                         proc.kill()
-                        print(f"Killed process {proc.pid} on port {port}")
-                    except Exception as e:
-                        print(f"Failed to kill process on port {port}: {e}")
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+            except Exception as e:
+                # Catch other potential errors like missing permissions
+                logger.log_warning(f"Could not check connections for process {proc.pid}: {e}")
 
     def check_backend_health(self):
         try:
