@@ -1,9 +1,6 @@
 {
-  "api_bridge": 8001,
+  "api_bridge": 8002,
   "mcp_backend": 8101,
   "llm_controller": 8201,
-  "react_frontend": 3000,
-  "frontend_port": 3000,
-  "frontend_url": "http://localhost:3000",
-  "started_at": "2025-07-07 18:20:15"
+  "react_frontend": 3000
 }

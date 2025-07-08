@@ -285,36 +285,38 @@ class BrowserSession:
             raise
 
 async def _login_linkedin(username: str | None = None, password: str | None = None, ctx: Context | None = None) -> dict:
-    """Business logic for LinkedIn login (undecorated, for testing)"""
-    logger.info("Starting LinkedIn login process")
-    
-    # Validate email format if provided
-    if username and '@' not in username:
-        return {"status": "error", "message": "Invalid email format"}
-    
-    # Validate password length if provided
-    if password and len(password) < 8:
-        return {"status": "error", "message": "Password must be at least 8 characters"}
-    
-    # Mock successful login for testing
-    return {"status": "success", "message": "Login process completed (mocked)"}
+    """Business logic for LinkedIn login. Relies on existing session cookies."""
+    logger.info("Checking for existing LinkedIn session.")
+
+    async with BrowserSession(platform='linkedin', headless=True) as session:
+        try:
+            page = await session.new_page('https://www.linkedin.com/feed/')
+            
+            # If the page URL is not the feed, we are not logged in.
+            if "linkedin.com/feed" not in page.url:
+                logger.error("Not logged in to LinkedIn.")
+                return {
+                    "status": "error", 
+                    "message": "Not logged in. Please create a session file by logging in manually."
+                }
+            
+            logger.info("Existing session is valid.")
+            await session.save_session(page) # Refresh the session cookies
+            return {"status": "success", "message": "Already logged in"}
+
+        except Exception as e:
+            logger.error(f"Failed to check LinkedIn session: {str(e)}")
+            return {"status": "error", "message": f"Failed to check session: {str(e)}"}
 
 @mcp.tool()
 async def login_linkedin(username: str | None = None, password: str | None = None, ctx: Context | None = None) -> dict:
     return await _login_linkedin(username, password, ctx)
 
 async def _login_linkedin_secure(ctx: Context | None = None) -> dict:
-    """Business logic for secure LinkedIn login (undecorated, for testing)"""
-    logger.info("Starting secure LinkedIn login")
-    username = os.getenv('LINKEDIN_USERNAME', '').strip()
-    password = os.getenv('LINKEDIN_PASSWORD', '').strip()
-    
-    # Check for missing credentials
-    if not username or not password:
-        return {"status": "error", "message": "Missing LinkedIn credentials"}
-    
-    # We'll pass the credentials to pre-fill them, but user can still modify them
-    return await _login_linkedin(username, password, ctx)
+    """Business logic for secure LinkedIn login. Relies on existing session cookies."""
+    logger.info("Attempting to use existing LinkedIn session.")
+    # This function now relies on the cookie loading mechanism in BrowserSession
+    return await _login_linkedin(ctx=ctx)
 
 @mcp.tool()
 async def login_linkedin_secure(ctx: Context | None = None) -> dict:
@@ -973,19 +975,10 @@ async def list_saved_jobs(ctx: Context) -> dict:
             "saved_jobs": []
         }
 
-@mcp.raw_route("get", "/health")
+@mcp.custom_route("/health", methods=["GET"])
 async def health_check(request):
     """Health check endpoint for the MCP server"""
-    from fastapi.responses import JSONResponse
-    logger.info("Health check endpoint called")
-    return JSONResponse(
-        status_code=200,
-        content={
-            "status": "healthy",
-            "server": "LinkedIn Browser MCP",
-            "timestamp": datetime.now().isoformat()
-        }
-    )
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
 
 @mcp.tool()
 async def update_application_status(job_id: str, ctx: Context, status: str = None, notes: str = None, follow_up_date: str = None) -> dict:
