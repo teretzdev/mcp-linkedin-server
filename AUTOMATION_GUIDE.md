@@ -504,4 +504,18 @@ def monitor_performance(self):
 
 ---
 
-**Remember**: The automation system is designed to handle most common issues automatically. If you encounter persistent problems, check the logs and consider running in debug mode for detailed information. 
+**Remember**: The automation system is designed to handle most common issues automatically. If you encounter persistent problems, check the logs and consider running in debug mode for detailed information.
+
+## Unified Automation & Management
+
+All automation, startup, and management actions are now handled through a single menu:
+
+```
+python manage.py
+```
+
+Use the arrow keys to select actions. All previous .bat files have been removed.
+
+---
+
+(Replace all .bat references below with python manage.py) 

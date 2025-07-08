@@ -148,4 +148,16 @@ This creates an optimized build in the `build/` directory.
 
 ## License
 
-MIT License - see the main project LICENSE file for details. 
+MIT License - see the main project LICENSE file for details.
+
+## Starting the Frontend
+
+To start the frontend (or any other service), use the unified menu system:
+
+```
+python manage.py
+```
+
+Select "Start Frontend Only" from the menu.
+
+All previous batch files have been removed. 

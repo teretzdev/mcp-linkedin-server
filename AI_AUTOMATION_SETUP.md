@@ -217,4 +217,20 @@ npm start
 
 The AI Job Automation System will work tirelessly to find and apply to the best job opportunities for you. Monitor the dashboard, adjust preferences based on results, and watch your job search efficiency soar!
 
-**Happy job hunting! 🚀** 
+**Happy job hunting! 🚀**
+
+# AI Automation Setup
+
+## Unified Setup & Management
+
+All automation and setup actions are now handled through a single menu:
+
+```
+python manage.py
+```
+
+Use the arrow keys to select actions. All previous .bat files have been removed.
+
+---
+
+(Replace all .bat references below with python manage.py) 

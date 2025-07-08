@@ -14,6 +14,10 @@ import psutil
 import requests
 import centralized_logging
 
+print("[DEBUG] ai_job_automation.py script started.")
+logging.basicConfig(level=logging.INFO)
+logging.info("[DEBUG] ai_job_automation.py script started (logger).")
+
 # Try to import Gemini
 try:
     import google.generativeai as genai
@@ -676,8 +680,8 @@ async def main():
         skills_preferred=["React", "AWS", "Docker"]
     )
     
-    # Run one cycle for 40 applications (user request)
-    result = await automation.run_automation_cycle(apply_threshold=0.7, save_threshold=0.5, count=40)
+    # Run one cycle for 5 applications (user request)
+    result = await automation.run_automation_cycle(apply_threshold=0.7, save_threshold=0.5, count=5)
     print(f"Automation result: {result}")
     
     # Get stats

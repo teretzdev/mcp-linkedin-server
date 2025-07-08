@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import './index.css';
+import { AuthProvider, useAuth } from './auth';
 
 // Components
 import Sidebar from './components/Sidebar';
@@ -41,12 +42,11 @@ import ApplicationFollowUps from './components/ApplicationFollowUps';
 import ApplicationAnalytics from './components/ApplicationAnalytics';
 import AIAutomationDashboard from './components/AIAutomationDashboard';
 
-function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+function AppContent() {
+  const { isLoggedIn, currentUser, autoLoginInProgress, autoLoginError } = useAuth();
   const [serverStatus, setServerStatus] = useState('disconnected');
   const [loading, setLoading] = useState(true);
   const [apiPort, setApiPort] = useState(null);
-  const [currentUser, setCurrentUser] = useState(null);
   const [showGeminiModal, setShowGeminiModal] = useState(false);
   const [geminiKey, setGeminiKey] = useState(localStorage.getItem('gemini_api_key') || '');
   const [pendingGeminiKey, setPendingGeminiKey] = useState('');
@@ -134,21 +134,6 @@ function App() {
       const response = await axios.get('/api/health');
       setServerStatus('connected');
       
-      // Check if credentials are configured
-      try {
-        const credentialsResponse = await axios.get('/api/get_credentials');
-        if (credentialsResponse.data.configured) {
-          setIsLoggedIn(true);
-          setCurrentUser({
-            name: credentialsResponse.data.name || credentialsResponse.data.username || 'User',
-            email: credentialsResponse.data.username || 'user@example.com',
-            avatar: 'https://via.placeholder.com/40'
-          });
-        }
-      } catch (error) {
-        console.log('Could not check credentials:', error.message);
-      }
-      
       setLoading(false);
     } catch (error) {
       setServerStatus('disconnected');
@@ -171,14 +156,11 @@ function App() {
   };
 
   const handleLogin = (userData) => {
-    setIsLoggedIn(true);
-    setCurrentUser(userData);
+    // Implement the logic to handle login
   };
 
   const handleLogout = () => {
-    setIsLoggedIn(false);
-    setCurrentUser(null);
-    handleSessionEnd();
+    // Implement the logic to handle logout
   };
 
   // Handler to open Gemini modal from child components
@@ -223,15 +205,22 @@ function App() {
     }
   };
 
-  if (loading) {
+  if (loading || autoLoginInProgress) {
     return (
       <div className="app">
         <div className="main-content flex items-center justify-center min-h-screen">
           <div className="text-center">
             <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-md" />
-            <h2 className="text-xl font-semibold text-primary">Connecting to LinkedIn Job Hunter...</h2>
+            <h2 className="text-xl font-semibold text-primary">
+              {autoLoginInProgress ? 'Logging in with environment credentials...' : 'Connecting to LinkedIn Job Hunter...'}
+            </h2>
             <p className="text-sm text-secondary mt-sm">Detecting API Bridge on ports 8001-8010</p>
-            {apiPort === null && !loading && (
+            {autoLoginError && (
+              <div className="text-red-500 mt-md">
+                <b>{autoLoginError}</b>
+              </div>
+            )}
+            {apiPort === null && !loading && !autoLoginInProgress && (
               <div className="text-red-500 mt-md">
                 <b>Could not connect to backend API on any port (8001-8010).</b><br />
                 Please ensure the backend is running and refresh this page.
@@ -244,7 +233,7 @@ function App() {
   }
 
   if (!isLoggedIn) {
-    return <Login onLogin={handleLogin} serverStatus={serverStatus} />;
+    return <Login onLogin={() => {}} serverStatus={serverStatus} />;
   }
 
   return (
@@ -438,4 +427,10 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+}

@@ -2,6 +2,16 @@
 
 Get the LinkedIn Job Hunter up and running in minutes with this comprehensive quick start guide.
 
+## Unified Startup & Management
+
+All startup, port cleanup, and service management is now handled through a single menu:
+
+```
+python manage.py
+```
+
+Use the arrow keys to select actions. All previous .bat files have been removed.
+
 ## ⚡ Super Quick Start (Recommended)
 
 ### One-Command Setup

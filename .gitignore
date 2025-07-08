@@ -4,6 +4,10 @@ venv/
 .env
 .venv/
 
+# Local environment files
+.env.*
+.env.alt.txt
+
 # Playwright browser data
 **/playwright-downloads/
 **/playwright/.cache/

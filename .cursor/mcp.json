@@ -21,6 +21,17 @@
       "disabled": false,
       "autoApprove": [],
       "description": "Software Planning Tool MCP server for development planning and task management."
+    },
+    "browser-tools": {
+      "command": "npx",
+      "args": ["@agentdeskai/browser-tools-mcp@1.2.0"],
+      "description": "BrowserTools MCP server for browser log aggregation, screenshots, and advanced browser automation. Runs on port 3025. Access via http://localhost:3025.",
+      "documentation": {
+        "clone_command": "git clone https://github.com/AgentDeskAI/browser-tools-mcp.git",
+        "start_command": "npx @agentdeskai/browser-tools-server@1.2.0",
+        "sample_output": "Starting Browser Tools Server...\nRequested port: 3025\nFound available port: 3025\n=== Browser Tools Server Started ===\nAggregator listening on http://0.0.0.0:3025\nAvailable on the following network addresses:\n  - http://10.0.3.10:3025\nFor local access use: http://localhost:3025",
+        "access_url": "http://localhost:3025"
+      }
     }
   }
 } 

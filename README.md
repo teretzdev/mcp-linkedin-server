@@ -258,4 +258,49 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 **Project Status**: Refactored with a functional legacy system and a foundational Enhanced MCP Server.
 **Last Updated**: 2025-07-05
-**Next Review**: 2025-07-12 
+**Next Review**: 2025-07-12
+
+# MCP LinkedIn Server
+
+## Unified Project Management
+
+All project startup, port cleanup, and service management actions are now handled exclusively through `manage.py`, a user-friendly, arrow-key-driven Python menu. **All previous batch files have been removed.**
+
+### To start or manage any part of the project, run:
+
+```
+python manage.py
+```
+
+This menu allows you to:
+- Start all services (auto startup)
+- Start only the frontend
+- Start only the backend
+- Clean up ports
+- Run tests
+- Exit
+
+**Do not use or recreate any .bat files.**
+
+## New Features (2025-07)
+
+### Robust Port Management & Health Checks
+- All service startups (backend, frontend) now use persistent port tracking and auto-retry logic.
+- Health checks confirm not just process start, but actual service availability (port open, HTTP 200, expected content).
+- If a service fails to start or pass health checks, it is retried up to 3 times automatically.
+- Detailed log messages are written using centralized logging for all actions, errors, and status updates.
+
+### Port Management & Cleanup Menu
+- New menu option in `python manage.py` to view, manage, and clean up ports and processes.
+- See which processes are using which ports, with detailed info (PID, command line, start time).
+- Optionally kill processes directly from the menu.
+
+### How to Use
+1. Run `python manage.py` and select the desired action.
+2. For backend/frontend, wait for confirmation of health and readiness.
+3. Use the Port Management menu to resolve port conflicts or view assignments.
+4. Check logs for detailed status and troubleshooting.
+
+### Log Interpretation
+- All actions, warnings, and errors are logged using the centralized logging system.
+- Look in `logs/manage.log` and related files for detailed diagnostics. 

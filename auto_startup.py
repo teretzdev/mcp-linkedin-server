@@ -19,6 +19,7 @@ import json
 import centralized_logging
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+import port_manager
 
 # Configure logging
 logger = centralized_logging.get_logger("auto_startup")
@@ -68,12 +69,18 @@ class AutoStartup:
             return False
     
     def find_unique_available_port(self, port_range, service_name):
-        # Try to use the last saved port if available and free
-        last_port = self.saved_ports.get(service_name)
+        # Try to use the last assigned port from port_manager first
+        last_port = port_manager.get_last_assigned_port(service_name)
         if last_port and self.check_port_available(last_port):
             return last_port
+        # Fallback to saved_ports (legacy)
+        last_port_legacy = self.saved_ports.get(service_name)
+        if last_port_legacy and self.check_port_available(last_port_legacy):
+            return last_port_legacy
         for port in port_range:
             if self.check_port_available(port):
+                # Save assignment in port_manager
+                port_manager.save_port_assignment(service_name, port)
                 return port
         raise RuntimeError(f"No available port found in range {port_range}")
     
@@ -190,6 +197,8 @@ class AutoStartup:
     def start_python_service(self, script: str, service_name: str):
         port_range = self.service_port_ranges[service_name]
         port = self.find_unique_available_port(port_range, service_name)
+        # Save assignment in port_manager
+        port_manager.save_port_assignment(service_name, port)
         self.services[service_name]['port'] = port
         self.save_ports()
         # Health check before killing/restarting
