@@ -291,7 +291,7 @@ async def _login_linkedin(username: str | None = None, password: str | None = No
     if not username or not password:
         return {"status": "error", "message": "Username and password are required for login."}
 
-    async with BrowserSession(platform='linkedin', headless=True) as session:
+    async with BrowserSession(platform='linkedin', headless=False) as session:
         page = await session.new_page('https://www.linkedin.com/login')
         try:
             # Fill in credentials and submit

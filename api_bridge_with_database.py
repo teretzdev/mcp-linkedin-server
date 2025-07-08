@@ -27,6 +27,7 @@ import base64
 from fastapi.responses import JSONResponse
 import uuid
 from fastmcp import Client
+from fastmcp.client.transports import StdioTransport
 
 # Import database components
 from legacy.database.database import DatabaseManager
@@ -325,12 +326,12 @@ async def search_jobs(request: JobSearchRequest, background_tasks: BackgroundTas
     try:
         logger.log_info(f"Starting real job search for query: {request.query}")
         
-        # Use FastMCP client to call the browser automation script
-        client = Client(str(Path(__file__).parent / "linkedin_browser_mcp.py"))
+        server_script_path = str(Path(__file__).parent / "linkedin_browser_mcp.py")
+        transport = StdioTransport(command="xvfb-run", args=["python3", server_script_path])
+        client = Client(transport)
         
         async with client:
             # Login first, to make sure we have a valid session
-            # This will use credentials from .env
             login_result = await client.call_tool("login_linkedin_secure")
             if login_result.data.get("status") != "success":
                 logger.log_error(f"MCP login failed: {login_result.data.get('message')}")
@@ -447,8 +448,9 @@ async def apply_job(request: JobApplyRequest, user: dict = Depends(get_current_u
             else:
                 logger.log_warning(f"Resume file not found: {request.resume_used}")
 
-        # Use FastMCP client to call the browser automation script
-        client = Client(str(Path(__file__).parent / "linkedin_browser_mcp.py"))
+        server_script_path = str(Path(__file__).parent / "linkedin_browser_mcp.py")
+        transport = StdioTransport(command="xvfb-run", args=["python3", server_script_path])
+        client = Client(transport)
 
         async with client:
             # Login first
