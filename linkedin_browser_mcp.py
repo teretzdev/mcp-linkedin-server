@@ -285,32 +285,37 @@ class BrowserSession:
             raise
 
 async def _login_linkedin(username: str | None = None, password: str | None = None, ctx: Context | None = None) -> dict:
-    """Navigates to the login page and waits for the user to log in manually."""
-    logger.info("Opening browser for manual LinkedIn login.")
+    """Business logic for LinkedIn login"""
+    logger.info("Starting real LinkedIn login process")
     
-    async with BrowserSession(platform='linkedin', headless=False) as session:
-        try:
-            page = await session.new_page('https://www.linkedin.com/login')
-            
-            # Inform the user to log in
-            message = "A browser window has been opened. Please log in to your LinkedIn account manually. The script will continue automatically after you successfully log in."
-            logger.info(message)
-            if ctx:
-                ctx.info(message)
+    if not username or not password:
+        return {"status": "error", "message": "Username and password are required for login."}
 
-            # Wait for the user to log in and be redirected to the feed.
-            # The timeout is set to 2 minutes to give ample time.
-            await page.wait_for_url("**/feed/**", timeout=120000)
+    async with BrowserSession(platform='linkedin', headless=False) as session:
+        page = await session.new_page('https://www.linkedin.com/login')
+        try:
+            # Fill in credentials and submit
+            logger.info("Filling in credentials...")
+            await page.fill('input[name="session_key"]', username)
+            await page.fill('input[name="session_password"]', password)
+            await page.click('button[type="submit"]')
             
-            logger.info("Manual login successful. Saving session for future runs.")
+            # Wait for navigation to the feed page, which indicates a successful login.
+            logger.info("Waiting for login confirmation...")
+            await page.wait_for_url("**/feed/**", timeout=30000)
+            
+            logger.info("Login successful. Saving session.")
             await session.save_session(page)
             
             return {"status": "success", "message": "Login successful"}
 
         except Exception as e:
-            error_message = f"Manual login failed or timed out: {str(e)}"
-            logger.error(error_message)
-            return {"status": "error", "message": error_message}
+            logger.error(f"LinkedIn login failed: {str(e)}")
+            # Take a screenshot on failure
+            screenshot_path = Path("logs") / f"login_failure_{int(time.time())}.png"
+            await page.screenshot(path=str(screenshot_path))
+            logger.error(f"Screenshot of failure saved to {screenshot_path}")
+            return {"status": "error", "message": f"Login failed: {str(e)}"}
 
 @mcp.tool()
 async def login_linkedin(username: str | None = None, password: str | None = None, ctx: Context | None = None) -> dict:
@@ -319,8 +324,10 @@ async def login_linkedin(username: str | None = None, password: str | None = Non
 async def _login_linkedin_secure(ctx: Context | None = None) -> dict:
     """Business logic for secure LinkedIn login. Relies on existing session cookies."""
     logger.info("Attempting to use existing LinkedIn session.")
+    username = os.getenv("LINKEDIN_USERNAME", "").strip()
+    password = os.getenv("LINKEDIN_PASSWORD", "").strip()
     # This function now relies on the cookie loading mechanism in BrowserSession
-    return await _login_linkedin(ctx=ctx)
+    return await _login_linkedin(username, password, ctx=ctx)
 
 @mcp.tool()
 async def login_linkedin_secure(ctx: Context | None = None) -> dict:
