@@ -100,6 +100,7 @@ def start_react_app(port):
         # Set environment variable
         env = os.environ.copy()
         env['PORT'] = str(port)
+        env['BROWSER'] = 'none'  # Prevent CRA from opening a browser tab
         
         print(f"🚀 Starting React app on port {port}...")
         
@@ -198,8 +199,7 @@ def open_browser(url):
         print(f"⚠️ Error opening browser: {e}")
 
 def main():
-    """Main startup sequence"""
-    print("🚀 LinkedIn MCP Server - Auto Startup")
+    print("\n🚀 LinkedIn MCP Server - Auto Startup")
     print("=" * 50)
     
     # Kill all required ports before anything else
@@ -215,7 +215,7 @@ def main():
         print("\n❌ Failed to install npm dependencies.")
         return False
     
-    # Find available port
+    # Find available port for frontend
     print("\n🔍 Finding available port...")
     available_port = find_available_port(3000, 10)
     
@@ -228,7 +228,7 @@ def main():
     # Start API Bridge in background
     api_process = start_api_bridge()
     
-    # Start React app
+    # Start React app on the available port
     react_process = start_react_app(available_port)
     
     if react_process:
@@ -258,8 +258,6 @@ def main():
     else:
         print("❌ Failed to start React app")
         return False
-    
-    return True
 
 if __name__ == "__main__":
     try:

@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "rabbitmq": {
+      "command": "rabbitmq-mcp-server.exe",
+      "args": [],
+      "env": {
+        "RABBITMQ_URL": "amqp://guest:guest@localhost:5672/"
+      }
+    },
+    "browser": {
+      "command": "node",
+      "args": [
+        "C:/Users/Shadow/mcp-linkedin-server/browser-mcp-over-cdp/dist/index.js"
+      ],
+      "env": {}
+    }
+  }
+} 

@@ -8,88 +8,107 @@ import asyncio
 import sys
 import os
 from pathlib import Path
-
-# Add the enhanced server to Python path
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
-# Set shared paths as environment variables
-shared_root = project_root.parent / 'shared'
-os.environ['SHARED_DATABASE_PATH'] = str(shared_root / 'database')
-os.environ['SHARED_SESSIONS_PATH'] = str(shared_root / 'sessions')
-os.environ['SHARED_LOGS_PATH'] = str(shared_root / 'logs')
-os.environ['SHARED_CONFIG_PATH'] = str(shared_root / 'config')
-
-# Ensure shared directories exist
-shared_root.mkdir(exist_ok=True)
-(shared_root / 'database').mkdir(exist_ok=True)
-(shared_root / 'sessions').mkdir(exist_ok=True)
-(shared_root / 'logs').mkdir(exist_ok=True)
-(shared_root / 'config').mkdir(exist_ok=True)
-
-from mcp_server.core.server import LinkedInMCPServer, initialize_server, cleanup_server
+import uvicorn
 import logging
 
-# Configure basic logging
+# Add the project root to the Python path to ensure correct module resolution.
+# This makes `from mcp_server...` imports work correctly from anywhere.
+project_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(project_root))
+
+from mcp_server.core.server import LinkedInMCPServer, initialize_server, cleanup_server
+from mcp_server.tools.job_automation import JobAutomation
+from mcp_server.core.config import load_config
+from starlette.responses import JSONResponse
+
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-
 logger = logging.getLogger(__name__)
 
 async def main():
-    """Main startup function"""
+    """
+    Initializes and runs the Enhanced MCP FastAPI server.
+
+    This function sets up the server, creates the necessary components like the
+    BrowserManager and JobAutomation tools, and defines an API endpoint
+    to trigger the job automation process.
+    """
+    server: LinkedInMCPServer = None
     try:
-        logger.info("Starting Enhanced LinkedIn MCP Server...")
-        logger.info(f"Project root: {project_root}")
-        logger.info(f"Shared root: {shared_root}")
+        # Load server configuration from file
+        config = load_config()
         
-        # Initialize the server
-        success = await initialize_server()
-        if not success:
-            logger.error("Failed to initialize server")
-            return 1
+        # Initialize the main server components
+        server = await initialize_server(config)
+        logger.info("Enhanced MCP Server initialized successfully.")
         
-        # Get the server instance
-        server = LinkedInMCPServer()
-        
-        # Get the underlying FastMCP server
-        mcp_server = server.get_server()
-        
-        logger.info("Enhanced MCP Server started successfully")
-        logger.info(f"Server version: {server.__class__.__module__}")
-        logger.info(f"Active sessions: {len(server._sessions)}")
-        logger.info(f"Shared database: {os.environ.get('SHARED_DATABASE_PATH')}")
-        logger.info(f"Shared sessions: {os.environ.get('SHARED_SESSIONS_PATH')}")
-        logger.info(f"Shared logs: {os.environ.get('SHARED_LOGS_PATH')}")
-        
-        # Keep the server running
-        try:
-            # This would normally start the MCP server
-            await mcp_server.run(transport='stdio')
-            
-        except KeyboardInterrupt:
-            logger.info("Received shutdown signal")
-            
+        # Create an instance of the JobAutomation tool, providing it with the
+        # server's browser manager.
+        job_automation = JobAutomation(
+            browser_manager=server.browser_manager,
+            auth_manager=server.auth_manager,
+            error_handler=server.error_handler
+        )
+        logger.info("JobAutomation tool initialized.")
+
+        # Define an API endpoint for health checks
+        @server.app.get("/health")
+        async def health_check_endpoint():
+            """A simple endpoint to confirm the server is running."""
+            return {"status": "ok"}
+
+        # Define an API endpoint to trigger the job automation
+        @server.app.post("/run-automation")
+        async def run_automation_endpoint():
+            """API endpoint to start the job automation process."""
+            logger.info("Received request to run job automation via /run-automation endpoint.")
+            try:
+                # IMPORTANT: We are NOT awaiting this. This starts the task in the background.
+                # The endpoint returns immediately, allowing the UI to not be blocked.
+                # In a real app, we'd return a task ID to check status.
+                asyncio.create_task(job_automation.run_job_automation())
+                
+                return JSONResponse(
+                    status_code=202, # 202 Accepted: The request has been accepted for processing
+                    content={"status": "processing", "message": "Job automation process started in the background."}
+                )
+            except Exception as e:
+                logger.error(f"An error occurred when trying to start job automation: {e}", exc_info=True)
+                return JSONResponse(
+                    status_code=500,
+                    content={"status": "error", "message": f"An error occurred: {e}"}
+                )
+
+        # Get server host and port from config, with defaults
+        server_config = config.get('server', {})
+        host = server_config.get('host', '127.0.0.1')
+        port = server_config.get('port', 8101)
+
+        logger.info(f"Starting FastAPI server at http://{host}:{port}")
+        logger.info(f"Health check is available at http://{host}:{port}/health (GET)")
+        logger.info(f"To trigger job automation, send a POST request to http://{host}:{port}/run-automation")
+
+        # Start the Uvicorn server to serve the FastAPI application
+        uvicorn_config = uvicorn.Config(server.app, host=host, port=port, log_level="info")
+        uvicorn_server = uvicorn.Server(uvicorn_config)
+        await uvicorn_server.serve()
+
     except Exception as e:
-        logger.error(f"Failed to start server: {e}")
-        return 1
-    
+        logger.error(f"A critical error occurred in the main server loop: {e}", exc_info=True)
     finally:
-        # Cleanup
-        await cleanup_server()
-        logger.info("Server shutdown complete")
-    
-    return 0
+        # Ensure cleanup runs even if the server crashes
+        if server:
+            await cleanup_server(server)
+            logger.info("Server cleanup has been completed.")
 
 if __name__ == "__main__":
     try:
-        exit_code = asyncio.run(main())
-        sys.exit(exit_code)
+        asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("Server stopped by user")
-        sys.exit(0)
+        logger.info("Server stopped by user (Ctrl+C).")
     except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        sys.exit(1) 
+        logger.critical(f"Unhandled exception at the top level: {e}", exc_info=True)
+        sys.exit(1)

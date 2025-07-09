@@ -8,50 +8,71 @@ import os
 import json
 import logging
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from pathlib import Path
 
-from .database import DatabaseManager
-from .models import User, SavedJob, AppliedJob, SessionData, SystemSettings
+from __future__ import annotations
+import logging
+from typing import TYPE_CHECKING, Dict, Any
+
+from sqlalchemy import inspect, text
+
+if TYPE_CHECKING:
+    from .database import DatabaseManager
+
+from .models import User, SessionData, SystemSettings
+from .migrations.m008_add_password_hash_to_user import add_password_hash_to_user
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def run_migrations(db_manager: DatabaseManager) -> bool:
-    """Run all database migrations"""
+    MIGRATIONS: Dict[str, Any] = {
+        '001_initial_setup': None,  # Placeholder for initial schema setup
+        '002_add_user_profile_fields': add_user_profile_fields,
+        '003_add_job_recommendations': add_job_recommendations,
+        '004_add_system_settings': add_system_settings,
+        '005_update_job_models': update_job_models,
+        '006_add_session_data': add_session_data,
+        '007_refine_automation_logs': refine_automation_logs,
+        '008_add_password_hash_to_user': add_password_hash_to_user,
+    }
+
     try:
-        logger.info("Starting database migrations...")
-        
-        # Check if migrations have been run
-        migration_version = db_manager.get_setting('migration_version')
-        if not migration_version:
-            migration_version = '0'
-        
-        # Run migrations in order
-        migrations = [
-            ('1', migrate_v1_initial_schema),
-            ('2', migrate_v2_user_profiles),
-            ('3', migrate_v3_session_data),
-            ('4', migrate_v4_automation_logs),
-            ('5', migrate_v5_system_settings)
-        ]
-        
-        for version, migration_func in migrations:
-            if int(version) > int(migration_version):
-                logger.info(f"Running migration v{version}...")
-                if migration_func(db_manager):
-                    db_manager.set_setting('migration_version', version, 'string', f'Migration version {version}')
-                    logger.info(f"Migration v{version} completed successfully")
-                else:
-                    logger.error(f"Migration v{version} failed")
-                    return False
-        
-        logger.info("All migrations completed successfully")
+        with db_manager.engine.connect() as connection:
+            inspector = inspect(db_manager.engine)
+            
+            # Simplified migration tracking: just check for a 'migrations' table
+            if 'migrations' not in inspector.get_table_names():
+                logger.info("Creating migrations table.")
+                connection.execute(text("""
+                    CREATE TABLE migrations (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name VARCHAR(255) UNIQUE NOT NULL,
+                        applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                """))
+
+            # Get completed migrations
+            completed_migrations = {
+                row[0] for row in connection.execute(text("SELECT name FROM migrations")).fetchall()
+            }
+
+            for name, func in sorted(MIGRATIONS.items()):
+                if name not in completed_migrations:
+                    logger.info(f"Running migration: {name}")
+                    if func:
+                        func(db_manager.engine)
+                    
+                    connection.execute(
+                        text("INSERT INTO migrations (name) VALUES (:name)"),
+                        {'name': name}
+                    )
+                    logger.info(f"Migration {name} completed and recorded.")
         return True
-        
     except Exception as e:
-        logger.error(f"Migration failed: {e}")
+        logger.error(f"Migration failed: {e}", exc_info=True)
         return False
 
 def migrate_v1_initial_schema(db_manager: DatabaseManager) -> bool:

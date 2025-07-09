@@ -11,6 +11,9 @@ import time
 import json
 from pathlib import Path
 import structlog
+import sys
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent.parent / 'shared'))
+from linkedin_login import robust_linkedin_login_playwright
 
 logger = structlog.get_logger(__name__)
 
@@ -95,6 +98,14 @@ class BrowserManager:
             # Load existing cookies if available
             await self._load_session_cookies(context, session_id)
             
+            # Open a page and ensure robust login
+            page = await context.new_page()
+            login_success = await robust_linkedin_login_playwright(context, page)
+            if not login_success:
+                logger.error("Manual login failed or not on feed page.", session_id=session_id)
+                raise Exception("LinkedIn login failed. Please try again.")
+            await page.close()
+            
             # Store session
             self._sessions[session_id] = context
             self._session_metadata[session_id] = {
@@ -103,7 +114,7 @@ class BrowserManager:
                 "headless": headless if headless is not None else self.headless
             }
             
-            logger.info("Browser session created", session_id=session_id)
+            logger.info("Browser session created and logged in", session_id=session_id)
             return context
             
         except Exception as e:

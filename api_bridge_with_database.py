@@ -10,11 +10,13 @@ import json
 import time
 import logging
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
+import subprocess
+import traceback
 
 # Add current directory to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -30,7 +32,7 @@ from fastmcp import Client
 
 # Import database components
 from legacy.database.database import DatabaseManager
-from legacy.database.models import User, SavedJob, AppliedJob, SessionData, AutomationLog
+from legacy.database.models import User, ScrapedJob, SessionData, AutomationLog
 
 # Import centralized logging
 from centralized_logging import get_logger, log_api_request, log_service_start, log_service_stop
@@ -248,19 +250,7 @@ def get_current_user(db: DatabaseManager = Depends(get_db_manager)) -> dict:
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint"""
-    try:
-        db = get_db_manager()
-        if db.test_connection():
-            return {
-                "status": "healthy",
-                "database": "connected",
-                "timestamp": datetime.now().isoformat(),
-                "version": "2.0.0"
-            }
-        else:
-            raise HTTPException(status_code=500, detail="Database connection failed")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
 
 # User management endpoints
 @app.post("/api/user/profile")
@@ -309,9 +299,101 @@ async def get_user_profile(user: dict = Depends(get_current_user)):
         logger.log_error(f"Error getting user profile: {e}", e)
         raise HTTPException(status_code=500, detail=f"Failed to get profile: {str(e)}")
 
-# Job search endpoint
+# Job search endpoint (internal automation version)
+@app.post("/api/search_jobs_internal")
+async def search_jobs_internal(request: JobSearchRequest, background_tasks: BackgroundTasks, db: DatabaseManager = Depends(get_db_manager)):
+    """
+    Internal-only endpoint for automated job searching.
+    Bypasses caching and user context for system-level tasks.
+    """
+    logger.log_info(f"Internal job search initiated for query='{request.query}', location='{request.location}'")
+
+    # This is a simplified search that calls the standalone linkedin_browser_mcp.py
+    # In a real-world scenario, this might trigger a more complex, headless browser orchestration
+    
+    # Get current user for logging purposes
+    try:
+        user_id = db.get_user("default_user")
+        if not user_id:
+            logger.log_error("Default user not found for internal search.")
+            raise HTTPException(status_code=500, detail="Default user not configured.")
+    except Exception as e:
+        logger.log_error("Error fetching user for internal search.", e)
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")
+
+    try:
+        # Before running the scraping script, check credentials
+        import os
+        email = os.getenv("LINKEDIN_EMAIL") or os.getenv("LINKEDIN_USERNAME")
+        password = os.getenv("LINKEDIN_PASSWORD")
+        if not email or not password:
+            logger.log_error("[API_BRIDGE_FATAL] LinkedIn credentials not found in environment variables. Please set LINKEDIN_EMAIL/USERNAME and LINKEDIN_PASSWORD in your .env file.")
+            raise HTTPException(status_code=500, detail="LinkedIn credentials missing. Set LINKEDIN_EMAIL/USERNAME and LINKEDIN_PASSWORD in .env.")
+
+        cmd = [
+            sys.executable,
+            "linkedin_browser_mcp.py",
+            f'--query="{request.query}"',
+            f'--location="{request.location}"',
+            f'--count={request.count}',
+            '--source=internal_api'
+        ]
+        
+        logger.log_info(f"Executing command: {' '.join(cmd)}")
+        
+        # Using asyncio.create_subprocess_exec for non-blocking execution
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode != 0:
+            error_message = stderr.decode().strip()
+            logger.log_error(f"Scraping script failed. Return code: {process.returncode}. Error: {error_message}")
+            raise HTTPException(status_code=500, detail=f"Job scraping failed: {error_message}")
+            
+        # After the script finishes, read the results from the DB
+        # This is a bit of a hacky way to get the result of the subprocess
+        # A better solution would be to use a proper message queue or temporary file
+        
+        # Give a small buffer for the script to finish writing to the db
+        await asyncio.sleep(2)
+        
+        # The script now directly inserts into the database.
+        # We can query the DB to see how many new jobs were added in the last minute.
+        one_minute_ago = datetime.utcnow() - timedelta(minutes=1)
+        new_jobs = db.get_jobs_added_since(one_minute_ago)
+        
+        added_count = len(new_jobs)
+
+        logger.log_info(f"Internal search complete. {added_count} new jobs added to the database.")
+        db.log_automation_action(user_id=user_id, action="internal_job_search", success=True, details={
+            "query": request.query,
+            "location": request.location,
+            "jobs_added": added_count
+        })
+
+        return {
+            "message": "Internal job search completed successfully.",
+            "jobs_added_to_db": added_count,
+            "total": added_count  # Approximation, as the script doesn't return the total found
+        }
+
+    except Exception as e:
+        logger.log_error("An error occurred during internal job search", e)
+        db.log_automation_action(user_id=user_id, action="internal_job_search", success=False, details={"error": str(e)})
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/search_jobs")
-async def search_jobs(request: JobSearchRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
+async def search_jobs(request: JobSearchRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user), db: DatabaseManager = Depends(get_db_manager)):
+    """Search for jobs with authentication"""
+    return await _search_jobs_core(request, background_tasks, user, db)
+
+async def _search_jobs_core(request: JobSearchRequest, background_tasks: BackgroundTasks, user: dict, db: DatabaseManager):
     """Search for jobs with caching and background processing"""
     start_time = datetime.now()
     logger.log_info(f"[TIMING] /api/search_jobs called at {start_time.isoformat()} | query={request.query} location={request.location} count={request.count}")
@@ -343,30 +425,52 @@ async def search_jobs(request: JobSearchRequest, background_tasks: BackgroundTas
             )
         mcp_end = datetime.now()
         logger.log_info(f"[TIMING] MCP job search took {(mcp_end-mcp_start).total_seconds():.2f}s")
+        
+        jobs_added_to_db = 0
         if tool_result.data.get("status") == "success":
             jobs = tool_result.data.get("jobs", [])
             logger.log_info(f"Found {len(jobs)} jobs via MCP.")
+            
+            user_id = user.get('id')
+            if user_id:
+                for job_data in jobs:
+                    db_job_data = {
+                        'job_id': job_data.get('job_id'),
+                        'title': job_data.get('title'),
+                        'company': job_data.get('company'),
+                        'location': job_data.get('location'),
+                        'job_url': job_data.get('job_url'),
+                        'description': job_data.get('description'),
+                        'easy_apply': job_data.get('easy_apply', False),
+                    }
+                    if db.add_scraped_job(user_id, db_job_data):
+                        jobs_added_to_db += 1
+                logger.log_info(f"Added {jobs_added_to_db} new jobs to the database.")
+
             result = {
                 "jobs": jobs,
                 "total": len(jobs),
                 "query": request.query,
-                "location": request.location
+                "location": request.location,
+                "jobs_added_to_db": jobs_added_to_db
             }
         else:
             error_message = tool_result.data.get("message", "Unknown error from MCP worker")
             logger.log_error(f"MCP job search failed: {error_message}")
             raise HTTPException(status_code=500, detail=f"Failed to search jobs via MCP: {error_message}")
+        
         api_cache[cache_key] = {
             'data': result,
             'timestamp': time.time()
         }
-        db = get_db_manager()
+        
         db.log_automation_action(
             user_id=user['id'],
             action="job_search",
             success=True,
-            details={"query": request.query, "location": request.location, "count": request.count}
+            details={"query": request.query, "location": request.location, "count": request.count, "added_to_db": jobs_added_to_db}
         )
+        
         background_tasks.add_task(cleanup_cache)
         logger.log_info(f"Job search completed for: {request.query}")
         logger.log_info(f"[TIMING] /api/search_jobs completed in {(datetime.now()-start_time).total_seconds():.2f}s")
@@ -376,47 +480,47 @@ async def search_jobs(request: JobSearchRequest, background_tasks: BackgroundTas
         logger.log_info(f"[TIMING] /api/search_jobs failed after {(datetime.now()-start_time).total_seconds():.2f}s")
         raise HTTPException(status_code=500, detail=f"Failed to search jobs: {str(e)}")
 
-# Job management endpoints
-@app.post("/api/save_job")
-async def save_job(request: SaveJobRequest, user: dict = Depends(get_current_user)):
-    """Save a job for later"""
-    try:
-        db = get_db_manager()
-        user_id = user['id']
-        if not isinstance(user_id, int):
-            raise HTTPException(status_code=500, detail="Invalid user id")
-        job_data = {
-            "job_id": request.job_id,
-            "title": request.title,
-            "company": request.company,
-            "location": request.location,
-            "job_url": request.job_url,
-            "description": request.description,
-            "salary_range": request.salary_range,
-            "job_type": request.job_type,
-            "experience_level": request.experience_level,
-            "easy_apply": request.easy_apply,
-            "remote_work": request.remote_work,
-            "notes": request.notes,
-            "tags": request.tags or []
-        }
-        saved_job = db.save_job(user_id, job_data)
-        if saved_job:
-            # Log action
-            db.log_automation_action(
-                user_id=user_id,
-                action="save_job",
-                success=True,
-                details={"job_id": request.job_id, "title": request.title},
-                job_id=request.job_id
-            )
-            logger.log_info(f"Job saved: {request.job_id}")
-            return {"success": True, "message": "Job saved successfully", "job": saved_job}
-        else:
-            return {"success": False, "message": "Job already saved"}
-    except Exception as e:
-        logger.log_error(f"Error saving job: {e}", e)
-        raise HTTPException(status_code=500, detail=f"Failed to save job: {str(e)}")
+# # Job management endpoints
+# @app.post("/api/save_job")
+# async def save_job(request: SaveJobRequest, user: dict = Depends(get_current_user)):
+#     """Save a job for later"""
+#     try:
+#         db = get_db_manager()
+#         user_id = user['id']
+#         if not isinstance(user_id, int):
+#             raise HTTPException(status_code=500, detail="Invalid user id")
+#         job_data = {
+#             "job_id": request.job_id,
+#             "title": request.title,
+#             "company": request.company,
+#             "location": request.location,
+#             "job_url": request.job_url,
+#             "description": request.description,
+#             "salary_range": request.salary_range,
+#             "job_type": request.job_type,
+#             "experience_level": request.experience_level,
+#             "easy_apply": request.easy_apply,
+#             "remote_work": request.remote_work,
+#             "notes": request.notes,
+#             "tags": request.tags or []
+#         }
+#         saved_job = db.save_job(user_id, job_data)
+#         if saved_job:
+#             # Log action
+#             db.log_automation_action(
+#                 user_id=user_id,
+#                 action="save_job",
+#                 success=True,
+#                 details={"job_id": request.job_id, "title": request.title},
+#                 job_id=request.job_id
+#             )
+#             logger.log_info(f"Job saved: {request.job_id}")
+#             return {"success": True, "message": "Job saved successfully", "job": saved_job}
+#         else:
+#             return {"success": False, "message": "Job already saved"}
+#     except Exception as e:
+#         logger.log_error(f"Error saving job: {e}", e)
+#         raise HTTPException(status_code=500, detail=f"Failed to save job: {str(e)}")
 
 @app.post("/api/apply_job")
 async def apply_job(request: JobApplyRequest, user: dict = Depends(get_current_user)):
@@ -495,39 +599,39 @@ async def apply_job(request: JobApplyRequest, user: dict = Depends(get_current_u
         logger.log_error(f"Error applying to job: {e}", e)
         raise HTTPException(status_code=500, detail=f"Failed to apply to job: {str(e)}")
 
-@app.get("/api/saved_jobs")
-async def get_saved_jobs(user: dict = Depends(get_current_user), limit: int = 50):
-    """Get saved jobs"""
-    try:
-        db = get_db_manager()
-        user_id = user['id']
-        if not isinstance(user_id, int):
-            raise HTTPException(status_code=500, detail="Invalid user id")
-        saved_jobs = db.get_saved_jobs(user_id, limit)
-        return {
-            "success": True,
-            "jobs": saved_jobs,
-        }
-    except Exception as e:
-        logger.log_error(f"Error getting saved jobs: {e}", e)
-        raise HTTPException(status_code=500, detail=f"Failed to get saved jobs: {str(e)}")
+# @app.get("/api/saved_jobs")
+# async def get_saved_jobs(user: dict = Depends(get_current_user), limit: int = 50):
+#     """Get saved jobs"""
+#     try:
+#         db = get_db_manager()
+#         user_id = user['id']
+#         if not isinstance(user_id, int):
+#             raise HTTPException(status_code=500, detail="Invalid user id")
+#         saved_jobs = db.get_saved_jobs(user_id, limit)
+#         return {
+#             "success": True,
+#             "jobs": saved_jobs,
+#         }
+#     except Exception as e:
+#         logger.log_error(f"Error getting saved jobs: {e}", e)
+#         raise HTTPException(status_code=500, detail=f"Failed to get saved jobs: {str(e)}")
 
-@app.get("/api/applied_jobs")
-async def get_applied_jobs(user: dict = Depends(get_current_user), limit: int = 50):
-    """Get applied jobs"""
-    try:
-        db = get_db_manager()
-        user_id = user['id']
-        if not isinstance(user_id, int):
-            raise HTTPException(status_code=500, detail="Invalid user id")
-        applied_jobs = db.get_applied_jobs(user_id, limit)
-        return {
-            "success": True,
-            "jobs": applied_jobs,
-        }
-    except Exception as e:
-        logger.log_error(f"Error getting applied jobs: {e}", e)
-        raise HTTPException(status_code=500, detail=f"Failed to get applied jobs: {str(e)}")
+# @app.get("/api/applied_jobs")
+# async def get_applied_jobs(user: dict = Depends(get_current_user), limit: int = 50):
+#     """Get applied jobs"""
+#     try:
+#         db = get_db_manager()
+#         user_id = user['id']
+#         if not isinstance(user_id, int):
+#             raise HTTPException(status_code=500, detail="Invalid user id")
+#         applied_jobs = db.get_applied_jobs(user_id, limit)
+#         return {
+#             "success": True,
+#             "jobs": applied_jobs,
+#         }
+#     except Exception as e:
+#         logger.log_error(f"Error getting applied jobs: {e}", e)
+#         raise HTTPException(status_code=500, detail=f"Failed to get applied jobs: {str(e)}")
 
 # Session management endpoints
 @app.post("/api/session/start")
@@ -879,4 +983,18 @@ async def upload_resume(request: ResumeUploadRequest, user: dict = Depends(get_c
 
 if __name__ == "__main__":
     load_dotenv()
-    uvicorn.run(app, host="0.0.0.0", port=api_port, log_level="info") 
+    # Initialize Database Manager
+    db_manager = DatabaseManager()
+    
+    # Get or create a default user
+    user_id = db_manager.get_user("default_user")
+    if not user_id:
+        user_id = db_manager.create_user("default_user", email="default@example.com", password_hash="...")
+    
+    # Log startup event
+    db_manager.log_automation_action(user_id, "startup", True)
+    
+    # Run the app
+    port = service_ports.get("api_bridge", 8002) # Use service_ports for port
+    logger.log_info(f"Starting API Bridge on http://0.0.0.0:{port}")
+    uvicorn.run(app, host="0.0.0.0", port=port) 

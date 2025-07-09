@@ -2,13 +2,12 @@
   "debug": true,
   "log_level": "INFO",
   "server": {
-    "host": "localhost",
-    "port": 8002,
-    "timeout": 30
+    "host": "127.0.0.1",
+    "port": 8101
   },
   "browser": {
-    "headless": true,
-    "timeout": 30000,
+    "headless": false,
+    "timeout": 60000,
     "max_retries": 3,
     "viewport": {
       "width": 1920,
@@ -23,10 +22,11 @@
     },
     "session_timeout": 3600,
     "max_sessions_per_user": 5,
-    "encryption_key_file": "../../shared/sessions/encryption_key.key"
+    "encryption_key_file": "../../shared/sessions/encryption_key.key",
+    "encryption_key": "your_secret_encryption_key_here"
   },
   "database": {
-    "url": "sqlite:///../../shared/database/linkedin_jobs.db",
+    "url": "sqlite:///C:/Users/Shadow/mcp-linkedin-server/shared/database/linkedin_jobs.db",
     "echo": false,
     "pool_size": 10,
     "max_overflow": 20

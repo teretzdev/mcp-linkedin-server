@@ -1,5 +1,6 @@
 {
   "api_bridge": 8002,
   "mcp_backend": 8101,
-  "llm_controller": 8201
+  "llm_controller": 8201,
+  "job_management_api": 8004
 }

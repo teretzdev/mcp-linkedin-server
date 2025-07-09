@@ -6,7 +6,7 @@ Handles database connections, sessions, and operations
 
 import os
 import logging
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import SQLAlchemyError
 from contextlib import contextmanager
@@ -14,7 +14,7 @@ from typing import Optional, List, Dict, Any, Generator
 from datetime import datetime, timedelta
 import json
 
-from .models import Base, User, SavedJob, AppliedJob, SessionData, AutomationLog, JobRecommendation, SystemSettings
+from .models import Base, User, ScrapedJob, SessionData, AutomationLog, JobRecommendation, SystemSettings
 from centralized_logging import get_logger
 
 # Configure logging
@@ -47,15 +47,43 @@ class DatabaseManager:
             # Create session factory
             self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
             
-            # Create all tables
+            # Create all tables if they don't exist
             Base.metadata.create_all(bind=self.engine)
+
+            # Verify and update table schema
+            self._verify_schema()
             
             logger.log_info(f"Database initialized successfully: {self.db_path}")
             
         except Exception as e:
             logger.log_error(f"Failed to initialize database: {e}")
             raise
-    
+
+    def _verify_schema(self):
+        """Verify and update the database schema."""
+        inspector = inspect(self.engine)
+        with self.engine.connect() as connection:
+            user_columns = [col['name'] for col in inspector.get_columns('users')]
+            
+            # Define all expected columns for the User model
+            expected_user_columns = {
+                'id': 'INTEGER', 'username': 'VARCHAR(255)', 'email': 'VARCHAR(255)',
+                'password_hash': 'VARCHAR(255)', 'created_at': 'DATETIME', 'updated_at': 'DATETIME',
+                'full_name': 'VARCHAR', 'current_position': 'VARCHAR(255)',
+                'skills': 'JSON', 'experience_years': 'INTEGER', 'resume_url': 'VARCHAR(500)'
+            }
+
+            for col_name, col_type in expected_user_columns.items():
+                if col_name not in user_columns:
+                    logger.log_info(f"Adding '{col_name}' column to 'users' table.")
+                    # Use execute with text for safety
+                    connection.execute(text(f'ALTER TABLE users ADD COLUMN {col_name} {col_type}'))
+            
+            # Commit the changes after altering the table
+            connection.commit()
+            
+            # You can add more schema checks here for other tables in the future
+
     @contextmanager
     def get_session(self) -> Generator[Session, None, None]:
         """Get database session with automatic cleanup"""
@@ -134,20 +162,25 @@ class DatabaseManager:
         except Exception as e:
             logger.log_error(f"Failed to update user: {e}")
             return False
-    
-    # Job Management
-    def save_job(self, user_id: int, job_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Save a job for later review and return as dict"""
+
+    # --- New ScrapedJob Management ---
+
+    def add_scraped_job(self, user_id: int, job_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Adds or updates a scraped job in the database.
+        Prevents duplicates based on job_url.
+        """
         try:
             with self.get_session() as session:
-                existing_job = session.query(SavedJob).filter(
-                    SavedJob.user_id == user_id,
-                    SavedJob.job_id == job_data.get('job_id')
-                ).first()
+                # Check if a job with this URL already exists
+                existing_job = session.query(ScrapedJob).filter(ScrapedJob.job_url == job_data.get('job_url')).first()
                 if existing_job:
-                    logger.log_info(f"Job already saved: {job_data.get('job_id')}")
+                    # Optionally, you could update the existing job here if needed
+                    logger.log_info(f"Job already exists in database: {job_data.get('job_url')}")
                     return existing_job.to_dict()
-                saved_job = SavedJob(
+
+                # Create new ScrapedJob object
+                scraped_job = ScrapedJob(
                     user_id=user_id,
                     job_id=job_data.get('job_id'),
                     title=job_data.get('title'),
@@ -155,75 +188,73 @@ class DatabaseManager:
                     location=job_data.get('location'),
                     job_url=job_data.get('job_url'),
                     description=job_data.get('description'),
+                    easy_apply=job_data.get('easy_apply', False),
                     salary_range=job_data.get('salary_range'),
                     job_type=job_data.get('job_type'),
                     experience_level=job_data.get('experience_level'),
-                    easy_apply=job_data.get('easy_apply', False),
                     remote_work=job_data.get('remote_work', False),
-                    notes=job_data.get('notes'),
-                    tags=job_data.get('tags', [])
+                    status='scraped' # Initial status
                 )
-                session.add(saved_job)
+                session.add(scraped_job)
                 session.flush()
-                logger.log_info(f"Saved job: {job_data.get('title')}")
-                return saved_job.to_dict()
+                logger.log_info(f"Added new scraped job: {scraped_job.title}")
+                return scraped_job.to_dict()
         except Exception as e:
-            logger.log_error(f"Failed to save job: {e}")
+            logger.log_error(f"Failed to add scraped job: {e}")
             return None
+
+    def get_jobs_by_status(self, user_id: int, status: str, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get jobs by status - alias for get_scraped_jobs_by_status"""
+        return self.get_scraped_jobs_by_status(user_id, status, limit)
     
-    def get_saved_jobs(self, user_id: int, limit: int = 50) -> List[Dict[str, Any]]:
-        """Get saved jobs for user as list of dicts"""
+    def get_scraped_jobs_by_status(self, user_id: int, status: str, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get scraped jobs for a user by their status."""
         try:
             with self.get_session() as session:
-                jobs = session.query(SavedJob).filter(
-                    SavedJob.user_id == user_id
-                ).order_by(SavedJob.saved_at.desc()).limit(limit).all()
+                jobs = session.query(ScrapedJob).filter(
+                    ScrapedJob.user_id == user_id,
+                    ScrapedJob.status == status
+                ).order_by(ScrapedJob.scraped_at.desc()).limit(limit).all()
                 return [job.to_dict() for job in jobs]
         except Exception as e:
-            logger.log_error(f"Failed to get saved jobs: {e}")
+            logger.log_error(f"Failed to get scraped jobs by status '{status}': {e}")
             return []
-    
-    def apply_to_job(self, user_id: int, job_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Record a job application and return as dict"""
+
+    def update_job_status(self, job_id: str, status: str, error_message: Optional[str] = None) -> bool:
+        """Update the status and optionally an error message for a job."""
         try:
             with self.get_session() as session:
-                existing_application = session.query(AppliedJob).filter(
-                    AppliedJob.user_id == user_id,
-                    AppliedJob.job_id == job_data.get('job_id')
-                ).first()
-                if existing_application:
-                    logger.log_info(f"Already applied to job: {job_data.get('job_id')}")
-                    return existing_application.to_dict()
-                applied_job = AppliedJob(
-                    user_id=user_id,
-                    job_id=job_data.get('job_id'),
-                    title=job_data.get('title'),
-                    company=job_data.get('company'),
-                    location=job_data.get('location'),
-                    job_url=job_data.get('job_url'),
-                    cover_letter=job_data.get('cover_letter'),
-                    resume_used=job_data.get('resume_used'),
-                    notes=job_data.get('notes')
-                )
-                session.add(applied_job)
-                session.flush()
-                logger.log_info(f"Applied to job: {job_data.get('title')}")
-                return applied_job.to_dict()
+                job = session.query(ScrapedJob).filter(ScrapedJob.job_id == job_id).first()
+                if not job:
+                    logger.log_warning(f"Job not found for status update: {job_id}")
+                    return False
+                
+                job.status = status
+                job.status_updated_at = datetime.now()
+                if status == 'applied':
+                    job.applied_at = datetime.now()
+                if error_message:
+                    job.error_message = error_message
+                
+                logger.log_info(f"Updated job {job_id} status to '{status}'")
+                return True
         except Exception as e:
-            logger.log_error(f"Failed to apply to job: {e}")
+            logger.log_error(f"Failed to update job status for {job_id}: {e}")
+            return False
+
+    def get_job_by_url(self, job_url: str) -> Optional[Dict[str, Any]]:
+        """Check if a job already exists in the database by its URL."""
+        try:
+            with self.get_session() as session:
+                job = session.query(ScrapedJob).filter(ScrapedJob.job_url == job_url).first()
+                return job.to_dict() if job else None
+        except Exception as e:
+            logger.log_error(f"Failed to get job by URL '{job_url}': {e}")
             return None
-    
-    def get_applied_jobs(self, user_id: int, limit: int = 50) -> List[Dict[str, Any]]:
-        """Get applied jobs for user as list of dicts"""
-        try:
-            with self.get_session() as session:
-                jobs = session.query(AppliedJob).filter(
-                    AppliedJob.user_id == user_id
-                ).order_by(AppliedJob.applied_at.desc()).limit(limit).all()
-                return [job.to_dict() for job in jobs]
-        except Exception as e:
-            logger.log_error(f"Failed to get applied jobs: {e}")
-            return []
+
+    # --- Deprecated Job Management ---
+    # The methods save_job, get_saved_jobs, apply_to_job, and get_applied_jobs
+    # are now deprecated in favor of the new ScrapedJob workflow.
     
     # Session Management
     def create_session(self, user_id: int, session_id: str, **kwargs) -> Optional[Dict[str, Any]]:
@@ -374,8 +405,8 @@ class DatabaseManager:
             with self.get_session() as session:
                 stats = {
                     'users': session.query(User).count(),
-                    'saved_jobs': session.query(SavedJob).count(),
-                    'applied_jobs': session.query(AppliedJob).count(),
+                    'saved_jobs': session.query(ScrapedJob).count(), # Changed from SavedJob to ScrapedJob
+                    'applied_jobs': session.query(ScrapedJob).filter(ScrapedJob.status == 'applied').count(), # Changed from AppliedJob to ScrapedJob
                     'sessions': session.query(SessionData).count(),
                     'automation_logs': session.query(AutomationLog).count(),
                     'recommendations': session.query(JobRecommendation).count(),
@@ -452,4 +483,92 @@ class DatabaseManager:
                 return True
         except Exception as e:
             logger.log_error(f"Failed to save resume path: {e}")
+            return False
+    
+    # Additional methods for refactored system
+    def get_jobs_count_by_status(self, user_id: int, status: str) -> int:
+        """Get count of jobs by status for a user"""
+        try:
+            with self.get_session() as session:
+                count = session.query(ScrapedJob).filter(
+                    ScrapedJob.user_id == user_id,
+                    ScrapedJob.status == status
+                ).count()
+                return count
+        except Exception as e:
+            logger.log_error(f"Failed to get job count by status: {e}")
+            return 0
+    
+    def get_recent_jobs(self, user_id: int, days: int = 7, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get recently scraped jobs"""
+        try:
+            with self.get_session() as session:
+                cutoff_date = datetime.now() - timedelta(days=days)
+                jobs = session.query(ScrapedJob).filter(
+                    ScrapedJob.user_id == user_id,
+                    ScrapedJob.scraped_at >= cutoff_date
+                ).order_by(ScrapedJob.scraped_at.desc()).limit(limit).all()
+                
+                return [job.to_dict() for job in jobs]
+        except Exception as e:
+            logger.log_error(f"Failed to get recent jobs: {e}")
+            return []
+    
+    def get_job_by_id(self, user_id: int, job_id: str) -> Optional[Dict[str, Any]]:
+        """Get a specific job by job_id"""
+        try:
+            with self.get_session() as session:
+                job = session.query(ScrapedJob).filter(
+                    ScrapedJob.user_id == user_id,
+                    ScrapedJob.job_id == job_id
+                ).first()
+                
+                if job:
+                    return job.to_dict()
+                return None
+        except Exception as e:
+            logger.log_error(f"Failed to get job by ID: {e}")
+            return None
+    
+    def delete_job(self, user_id: int, job_id: str) -> bool:
+        """Delete a job"""
+        try:
+            with self.get_session() as session:
+                job = session.query(ScrapedJob).filter(
+                    ScrapedJob.user_id == user_id,
+                    ScrapedJob.job_id == job_id
+                ).first()
+                
+                if job:
+                    session.delete(job)
+                    logger.log_info(f"Deleted job: {job_id}")
+                    return True
+                else:
+                    logger.log_warning(f"Job not found for deletion: {job_id}")
+                    return False
+        except Exception as e:
+            logger.log_error(f"Failed to delete job: {e}")
+            return False
+    
+    def update_job_status_new(self, user_id: int, job_id: str, update_data: Dict[str, Any]) -> bool:
+        """Update job status and other fields (refactored version)"""
+        try:
+            with self.get_session() as session:
+                job = session.query(ScrapedJob).filter(
+                    ScrapedJob.user_id == user_id,
+                    ScrapedJob.job_id == job_id
+                ).first()
+                
+                if job:
+                    for key, value in update_data.items():
+                        if hasattr(job, key):
+                            setattr(job, key, value)
+                    job.updated_at = datetime.now()
+                    logger.log_info(f"Updated job {job_id} status")
+                    return True
+                else:
+                    logger.log_warning(f"Job not found for update: {job_id}")
+                    return False
+        except Exception as e:
+            logger.log_error(f"Failed to update job status: {e}")
             return False 

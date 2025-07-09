@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 from datetime import datetime
 import structlog
+from fastapi import FastAPI # Added for the new_server_instance
 
 from .browser_manager import BrowserManager
 from .auth_manager import AuthManager
@@ -38,8 +39,9 @@ logger = structlog.get_logger(__name__)
 class LinkedInMCPServer:
     """Enhanced MCP server for LinkedIn job automation"""
     
-    def __init__(self, config_path: Optional[Path] = None):
-        self.config = self._load_config(config_path)
+    def __init__(self, config: Dict[str, Any]):
+        self.config = config
+        self.app = FastAPI() # Create a FastAPI instance for the server
         self.mcp = FastMCP(
             "linkedin-job-hunter",
             dependencies=[
@@ -78,7 +80,7 @@ class LinkedInMCPServer:
             "debug": True,
             "log_level": "INFO",
             "browser": {
-                "headless": True,
+                "headless": False,
                 "timeout": 30000,
                 "max_retries": 3
             },
@@ -256,27 +258,38 @@ class LinkedInMCPServer:
             logger.info("Expired session cleaned up", session_id=session_id)
     
     def get_server(self) -> FastMCP:
-        """Get the underlying FastMCP server instance"""
+        """Returns the underlying FastMCP instance"""
         return self.mcp
 
-# Global server instance
+# Global singleton for the server instance
 _server_instance: Optional[LinkedInMCPServer] = None
 
 def get_server() -> LinkedInMCPServer:
-    """Get the global server instance"""
-    global _server_instance
+    """Returns the singleton server instance"""
     if _server_instance is None:
-        _server_instance = LinkedInMCPServer()
+        raise RuntimeError("Server has not been initialized. Call initialize_server() first.")
     return _server_instance
 
-async def initialize_server() -> bool:
-    """Initialize the global server instance"""
-    server = get_server()
-    return await server.initialize()
-
-async def cleanup_server():
-    """Cleanup the global server instance"""
+async def initialize_server(config: Dict[str, Any]) -> LinkedInMCPServer:
+    """Creates and initializes the singleton server instance."""
     global _server_instance
-    if _server_instance:
-        await _server_instance.cleanup()
-        _server_instance = None 
+    if _server_instance is not None:
+        logger.warning("Server is already initialized. Returning existing instance.")
+        return _server_instance
+    
+    # Create the server instance with the provided config
+    _server_instance = LinkedInMCPServer(config=config)
+    
+    # Run the async initialization for components like BrowserManager
+    await _server_instance.initialize()
+    
+    logger.info("Server instance created and initialized.")
+    return _server_instance
+
+async def cleanup_server(server: Optional[LinkedInMCPServer]):
+    """Cleans up the server instance."""
+    if server:
+        await server.cleanup()
+        logger.info("Server cleanup routines have been executed.")
+    global _server_instance
+    _server_instance = None 
